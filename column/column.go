@@ -1,8 +1,10 @@
 package column
 
 import (
-	"github.com/ClickHouse/ch-go/proto"
+	"encoding/binary"
 	"unsafe"
+
+	"github.com/ClickHouse/ch-go/proto"
 )
 
 type Column interface {
@@ -11,6 +13,7 @@ type Column interface {
 	Len() int
 	DecodeColumn(r *proto.Reader, rows int) error
 	EncodeColumn(b *proto.Buffer) error
+	WriteColumn(w *proto.Writer)
 }
 
 type ColumnOf[T any] interface {
@@ -68,15 +71,31 @@ func (c *Base[T]) Type() proto.ColumnType {
 }
 
 func (c *Base[T]) DecodeColumn(r *proto.Reader, rows int) error {
-	var zero T
-	n := rows * int(unsafe.Sizeof(zero))
 	if rows == 0 {
 		c.Data = c.Data[:0]
 		return nil
 	}
+	var zero T
+	elemSize := int(unsafe.Sizeof(zero))
+	n := rows * elemSize
+	raw := make([]byte, n)
+	if err := r.ReadFull(raw); err != nil {
+		return err
+	}
 	c.Data = make([]T, rows)
-	raw := unsafe.Slice((*byte)(unsafe.Pointer(&c.Data[0])), n)
-	return r.ReadFull(raw)
+	for i := 0; i < rows; i++ {
+		switch elemSize {
+		case 1:
+			*(*uint8)(unsafe.Pointer(&c.Data[i])) = raw[i]
+		case 2:
+			*(*uint16)(unsafe.Pointer(&c.Data[i])) = binary.LittleEndian.Uint16(raw[i*2:])
+		case 4:
+			*(*uint32)(unsafe.Pointer(&c.Data[i])) = binary.LittleEndian.Uint32(raw[i*4:])
+		case 8:
+			*(*uint64)(unsafe.Pointer(&c.Data[i])) = binary.LittleEndian.Uint64(raw[i*8:])
+		}
+	}
+	return nil
 }
 
 func (c *Base[T]) EncodeColumn(b *proto.Buffer) error {
@@ -84,7 +103,35 @@ func (c *Base[T]) EncodeColumn(b *proto.Buffer) error {
 		return nil
 	}
 	var zero T
-	n := len(c.Data) * int(unsafe.Sizeof(zero))
-	b.Buf = append(b.Buf, unsafe.Slice((*byte)(unsafe.Pointer(&c.Data[0])), n)...)
+	elemSize := int(unsafe.Sizeof(zero))
+	n := len(c.Data) * elemSize
+	off := len(b.Buf)
+	b.Buf = append(b.Buf, make([]byte, n)...)
+	for i, v := range c.Data {
+		switch elemSize {
+		case 1:
+			b.Buf[off+i] = *(*byte)(unsafe.Pointer(&v))
+		case 2:
+			binary.LittleEndian.PutUint16(b.Buf[off+i*2:], *(*uint16)(unsafe.Pointer(&v)))
+		case 4:
+			binary.LittleEndian.PutUint32(b.Buf[off+i*4:], *(*uint32)(unsafe.Pointer(&v)))
+		case 8:
+			binary.LittleEndian.PutUint64(b.Buf[off+i*8:], *(*uint64)(unsafe.Pointer(&v)))
+		}
+	}
 	return nil
+}
+
+func (c *Base[T]) WriteColumn(w *proto.Writer) {
+	if len(c.Data) == 0 {
+		return
+	}
+	var zero T
+	elemSize := int(unsafe.Sizeof(zero))
+	n := len(c.Data) * elemSize
+	// Use unsafe to create a []byte header backed by c.Data's backing array.
+	// Safe because c.Data's backing array won't be mutated during write.
+	sh := (*[3]int)(unsafe.Pointer(&c.Data))
+	b := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(sh[0]))), n)
+	w.ChainWrite(b)
 }

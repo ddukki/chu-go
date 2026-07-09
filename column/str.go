@@ -47,3 +47,11 @@ func (c *Str) EncodeColumn(b *proto.Buffer) error {
 	}
 	return nil
 }
+
+func (c *Str) WriteColumn(w *proto.Writer) {
+	w.ChainBuffer(func(b *proto.Buffer) {
+		for _, v := range c.Data {
+			b.PutString(v)
+		}
+	})
+}

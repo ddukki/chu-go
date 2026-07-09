@@ -78,6 +78,14 @@ func (c *LowCardinality[T]) DecodeColumn(r *proto.Reader, rows int) error {
 	return nil
 }
 
+func (c *LowCardinality[T]) WriteColumn(w *proto.Writer) {
+	w.ChainBuffer(func(b *proto.Buffer) {
+		if err := c.EncodeColumn(b); err != nil {
+			panic(err)
+		}
+	})
+}
+
 func (c *LowCardinality[T]) EncodeColumn(b *proto.Buffer) error {
 	// Build dictionary: collect unique keys
 	dict := make(map[T]int)

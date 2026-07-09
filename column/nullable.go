@@ -63,3 +63,16 @@ func (c *Nullable[T]) EncodeColumn(b *proto.Buffer) error {
 	}
 	return c.Values.EncodeColumn(b)
 }
+
+func (c *Nullable[T]) WriteColumn(w *proto.Writer) {
+	w.ChainBuffer(func(b *proto.Buffer) {
+		for _, isNull := range c.Nulls {
+			if isNull {
+				b.Buf = append(b.Buf, 1)
+			} else {
+				b.Buf = append(b.Buf, 0)
+			}
+		}
+	})
+	c.Values.WriteColumn(w)
+}

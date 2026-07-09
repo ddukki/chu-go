@@ -24,9 +24,10 @@ type Conn struct {
 	state State
 	conn  net.Conn
 	cfg   Config
-	reader *proto.Reader
-	writer *proto.Writer
-	server proto.ServerHello
+	reader   *proto.Reader
+	writer   *proto.Writer
+	server   proto.ServerHello
+	localAddr net.Addr
 
 	OnProgress     func(proto.Progress)
 	OnProfile      func(proto.Profile)
@@ -86,6 +87,7 @@ func Connect(ctx context.Context, cfg Config) (*Conn, error) {
 			return nil, &Error{Kind: KindProtocol, Message: "decode server hello", Err: err}
 		}
 		c.server = sh
+	c.localAddr = raw.LocalAddr()
 	case proto.ServerCodeException:
 		var ex proto.Exception
 		if err := ex.DecodeAware(c.reader, proto.Version); err != nil {
@@ -97,6 +99,16 @@ func Connect(ctx context.Context, cfg Config) (*Conn, error) {
 	default:
 		c.conn.Close()
 		return nil, &Error{Kind: KindProtocol, Message: "unexpected server code"}
+	}
+
+	if proto.FeatureAddendum.In(proto.Version) {
+		c.writer.ChainBuffer(func(b *proto.Buffer) {
+			b.PutString("")
+		})
+		if _, err := c.writer.Flush(); err != nil {
+			c.conn.Close()
+			return nil, &Error{Kind: KindNetwork, Message: "flush addendum", Err: err}
+		}
 	}
 
 	c.state = StateReady
@@ -145,8 +157,9 @@ func (c *Conn) setReadTimeout(d time.Duration) {
 	}
 }
 
-func makeClientInfo(server proto.ServerHello) proto.ClientInfo {
-	return proto.ClientInfo{
+func makeClientInfo(server proto.ServerHello, localAddr net.Addr) proto.ClientInfo {
+	addr := localAddr.String()
+	ci := proto.ClientInfo{
 		ProtocolVersion: proto.Version,
 		Major:           24,
 		Minor:           3,
@@ -157,4 +170,8 @@ func makeClientInfo(server proto.ServerHello) proto.ClientInfo {
 		ClientHostname:  "",
 		ClientName:      "chu-go",
 	}
+	if addr != "" {
+		ci.InitialAddress = addr
+	}
+	return ci
 }
