@@ -3,6 +3,7 @@ package column
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"math"
 	"unsafe"
 
@@ -121,7 +122,7 @@ func (c *Base[T]) EncodeColumn(b *proto.Buffer) error {
 	elemSize := int(unsafe.Sizeof(zero))
 	n, err := safeMul(len(c.Data), elemSize)
 	if err != nil {
-		return fmt.Errorf("encode column %s: %w", c.name, err)
+		return err
 	}
 	off := len(b.Buf)
 	b.Buf = append(b.Buf, make([]byte, n)...)
@@ -148,7 +149,8 @@ func (c *Base[T]) WriteColumn(w *proto.Writer) {
 	elemSize := int(unsafe.Sizeof(zero))
 	n, err := safeMul(len(c.Data), elemSize)
 	if err != nil {
-		panic(fmt.Errorf("write column %s: %w", c.name, err))
+		log.Printf("chu-go/column: encode %s safeMul %d*%d: %v", c.name, len(c.Data), elemSize, err)
+		return
 	}
 	b := make([]byte, n)
 	for i, v := range c.Data {

@@ -94,9 +94,7 @@ func (c *LowCardinality[T]) DecodeColumn(r *proto.Reader, rows int) error {
 
 func (c *LowCardinality[T]) WriteColumn(w *proto.Writer) {
 	w.ChainBuffer(func(b *proto.Buffer) {
-		if err := c.EncodeColumn(b); err != nil {
-			panic(err)
-		}
+		_ = c.EncodeColumn(b)
 	})
 }
 
