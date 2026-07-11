@@ -50,30 +50,14 @@ func New(ctx context.Context, cfg PoolConfig) (*Pool, error) {
 		addrs = []string{a}
 	}
 
-	maxSize := int32(cfg.MaxConns)
-	if maxSize == 0 {
-		maxSize = 1000
-	}
-
 	p := &Pool{
 		cfg:    cfg,
 		stopCh: make(chan struct{}),
 	}
 
 	for _, addr := range addrs {
-		subCfg := cfg.Config
-		subCfg.Addr = addr
-
 		sub := &addrPool{addr: addr}
-		pp, err := puddle.NewPool(&puddle.Config[*conn.Conn]{
-			Constructor: func(ctx context.Context) (*conn.Conn, error) {
-				return conn.Connect(ctx, subCfg)
-			},
-			Destructor: func(c *conn.Conn) {
-				c.Close()
-			},
-			MaxSize: maxSize,
-		})
+		pp, err := p.newSubPool(addr)
 		if err != nil {
 			for _, s := range p.subs {
 				s.p.Close()
@@ -122,7 +106,16 @@ func (p *Pool) Acquire(ctx context.Context) (*PoolConn, error) {
 			if errors.Is(err, puddle.ErrClosedPool) {
 				continue
 			}
-			return nil, &conn.Error{Kind: conn.KindInternal, Message: "acquire", Err: err}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, &conn.Error{Kind: conn.KindInternal, Message: "acquire", Err: err}
+			}
+			p.mu.Lock()
+			if !sp.dead {
+				sp.dead = true
+				sp.p.Close()
+			}
+			p.mu.Unlock()
+			continue
 		}
 
 		return &PoolConn{
@@ -130,6 +123,19 @@ func (p *Pool) Acquire(ctx context.Context) (*PoolConn, error) {
 			addr: sp.addr,
 			res:  res,
 		}, nil
+	}
+
+	p.mu.Lock()
+	allDead := true
+	for _, s := range p.subs {
+		if !s.dead {
+			allDead = false
+			break
+		}
+	}
+	p.mu.Unlock()
+	if allDead {
+		return nil, &conn.Error{Kind: conn.KindInternal, Message: "all replicas unreachable"}
 	}
 
 	return nil, &conn.Error{Kind: conn.KindInternal, Message: "no available connections"}
@@ -300,6 +306,28 @@ func (p *Pool) InsertStream(ctx context.Context, query string) (*conn.InsertStre
 	return s, nil
 }
 
+func (p *Pool) maxSize() int32 {
+	maxSize := int32(p.cfg.MaxConns)
+	if maxSize == 0 {
+		maxSize = 1000
+	}
+	return maxSize
+}
+
+func (p *Pool) newSubPool(addr string) (*puddle.Pool[*conn.Conn], error) {
+	subCfg := p.cfg.Config
+	subCfg.Addr = addr
+	return puddle.NewPool(&puddle.Config[*conn.Conn]{
+		Constructor: func(ctx context.Context) (*conn.Conn, error) {
+			return conn.Connect(ctx, subCfg)
+		},
+		Destructor: func(c *conn.Conn) {
+			c.Close()
+		},
+		MaxSize: p.maxSize(),
+	})
+}
+
 func (p *Pool) healthLoop(ctx context.Context) {
 	ticker := time.NewTicker(p.cfg.HealthCheckInterval)
 	defer ticker.Stop()
@@ -316,7 +344,7 @@ func (p *Pool) healthLoop(ctx context.Context) {
 
 func (p *Pool) checkHealth(ctx context.Context) {
 	p.mu.Lock()
-	deadList := make([]*addrPool, 0)
+	deadList := make([]*addrPool, 0, len(p.subs))
 	for _, s := range p.subs {
 		if s.dead {
 			deadList = append(deadList, s)
@@ -345,7 +373,14 @@ func (p *Pool) checkHealth(ctx context.Context) {
 		}
 		c.Close()
 
+		pp, err := p.newSubPool(s.addr)
+		if err != nil {
+			continue
+		}
+
 		p.mu.Lock()
+		s.p.Close()
+		s.p = pp
 		s.dead = false
 		p.mu.Unlock()
 	}

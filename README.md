@@ -78,6 +78,15 @@ func main() {
 c, err := chu.Connect(ctx, chu.Config{Addr: "localhost:9000"})
 ```
 
+Or via DSN:
+
+```go
+import "github.com/ddukki/chu-go/conn"
+
+cfg, _ := conn.ParseDSN("clickhouse://user:pass@localhost:9000/mydb?dial_timeout=10s&compress=lz4")
+c, err := chu.Connect(ctx, cfg)
+```
+
 `Config` fields with zero-value defaults:
 
 | Field | Default |
@@ -91,6 +100,24 @@ c, err := chu.Connect(ctx, chu.Config{Addr: "localhost:9000"})
 | `ReadTimeout` | no timeout |
 | `WriteTimeout` | no timeout |
 | `TLSConfig` | nil (plain TCP) |
+
+#### DSN format
+
+```
+clickhouse://[user[:password]@]host[:port][,host2[:port]]...[/database][?param=value&...]
+```
+
+Known connection params consumed from query string:
+
+| Param | Type | Example |
+|-------|------|---------|
+| `dial_timeout` | duration | `10s` |
+| `compress` | string | `lz4`, `none` |
+| `read_timeout` | duration | `30s` |
+| `write_timeout` | duration | `30s` |
+| `secure` | bool | `true` |
+
+All other params are passed as ClickHouse settings. Use `pool.ParsePoolDSN` for multi-host pool configuration.
 
 ### Exec
 
@@ -182,6 +209,15 @@ nameCol.AppendArr([]string{"d", "e"})
 s.Append()  // sends second block
 
 s.Close()  // sends end-of-data, reads server response
+```
+
+### DSN-based pool config
+
+```go
+import "github.com/ddukki/chu-go/pool"
+
+cfg, _ := pool.ParsePoolDSN("clickhouse://host1:9000,host2:9000/mydb?pool_max_conns=10&health_check_interval=30s")
+p, _ := pool.New(ctx, cfg)
 ```
 
 ### Connection pool

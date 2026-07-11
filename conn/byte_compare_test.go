@@ -294,7 +294,9 @@ readLoop:
 	//      - PutInt(b.Rows)
 	//      - for each col: EncodeStart, Prepare, EncodeState, EncodeColumn
 	
-	// So we send: ClientCode(Data) + ClientData + BlockInfo + cols/rows + col data
+	// Column order: metadata + data per column, interleaved — matching ch-go's
+	// WriteBlock/EncodeRawBlock iteration order. The server expects per-column
+	// interleaving: col0 meta → col0 data → col1 meta → col1 data.
 	w.ChainBuffer(func(b *proto.Buffer) {
 		proto.ClientCodeData.Encode(b)
 		proto.ClientData{}.EncodeAware(b, sh.Revision)
@@ -302,31 +304,28 @@ readLoop:
 		bi.Encode(b)
 		b.PutInt(2) // 2 cols
 		b.PutInt(1) // 1 row
+		// col0: id UInt64
 		b.PutString("id")
 		b.PutString("UInt64")
 		if proto.FeatureCustomSerialization.In(sh.Revision) {
 			b.PutBool(false)
 		}
+	})
+	// col0 data: uint64(42)
+	w.ChainBuffer(func(b *proto.Buffer) {
+		b.PutUInt64(42)
+	})
+	// col1: name String + data interleaved
+	w.ChainBuffer(func(b *proto.Buffer) {
 		b.PutString("name")
 		b.PutString("String")
 		if proto.FeatureCustomSerialization.In(sh.Revision) {
 			b.PutBool(false)
 		}
-	})
-	// Column data: ColUInt64 writes raw uint64 values (no row marker — block header already has Rows=1)
-	w.ChainBuffer(func(b *proto.Buffer) {
-		b.PutUInt64(42)
-	})
-	// Column data: ColStr writes length-prefixed strings (no row prefix)
-	w.ChainBuffer(func(b *proto.Buffer) {
 		b.PutString("hello")
 	})
 	
-	if _, err := w.Flush(); err != nil {
-		t.Fatalf("flush data: %v", err)
-	}
-	
-	// End block (blank block - signals end of INSERT data) — flush SEPARATELY
+	// End block (blank block - signals end of INSERT data)
 	w.ChainBuffer(func(b *proto.Buffer) {
 		proto.ClientCodeData.Encode(b)
 		proto.ClientData{}.EncodeAware(b, sh.Revision)
@@ -335,7 +334,7 @@ readLoop:
 	})
 	
 	if _, err := w.Flush(); err != nil {
-		t.Fatalf("flush end: %v", err)
+		t.Fatalf("flush data+end: %v", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "=== READ FINAL RESPONSE ===\n")
@@ -348,6 +347,7 @@ readLoop:
 				done <- fmt.Errorf("read: %w", err)
 				return
 			}
+			t.Logf("Got server code: %d", code)
 			switch proto.ServerCode(code) {
 			case proto.ServerCodeEndOfStream:
 				done <- nil
@@ -364,15 +364,47 @@ readLoop:
 			case proto.ServerCodeData:
 				t.Log("Got unexpected Data")
 				if proto.FeatureTempTables.In(sh.Revision) {
-					r.Str()
+					if _, err := r.Str(); err != nil {
+						done <- fmt.Errorf("read table name: %w", err)
+						return
+					}
 				}
 				if proto.FeatureBlockInfo.In(sh.Revision) {
 					var bi proto.BlockInfo
-					bi.Decode(r)
+					if err := bi.Decode(r); err != nil {
+						done <- fmt.Errorf("decode block info: %w", err)
+						return
+					}
 				}
-				cols, _ := r.Int()
-				rows, _ := r.Int()
+				cols, err := r.Int()
+				if err != nil {
+					done <- fmt.Errorf("read cols: %w", err)
+					return
+				}
+				rows, err := r.Int()
+				if err != nil {
+					done <- fmt.Errorf("read rows: %w", err)
+					return
+				}
 				t.Logf("Data: cols=%d rows=%d", cols, rows)
+				_ = cols
+				_ = rows
+			case proto.ServerCodeProfile:
+				var p proto.Profile
+				p.DecodeAware(r, sh.Revision)
+				t.Logf("Profile: rows=%d blocks=%d bytes=%d", p.Rows, p.Blocks, p.Bytes)
+			case proto.ServerProfileEvents:
+				t.Log("Skipping ProfileEvents block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip ProfileEvents: %w", err)
+					return
+				}
+			case proto.ServerCodeLog:
+				t.Log("Skipping Log block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip Log: %w", err)
+					return
+				}
 			default:
 				t.Logf("Unexpected code: %d", code)
 			}
