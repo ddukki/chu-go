@@ -93,7 +93,11 @@ func (c *Base[T]) DecodeColumn(r *proto.Reader, rows int) error {
 	if err != nil {
 		return fmt.Errorf("decode column %s: %w", c.name, err)
 	}
-	c.Data = make([]T, rows)
+	if cap(c.Data) >= rows {
+		c.Data = c.Data[:rows]
+	} else {
+		c.Data = make([]T, rows)
+	}
 	switch elemSize {
 	case 1, 2, 4, 8:
 		buf := unsafe.Slice((*byte)(unsafe.Pointer(&c.Data[0])), n)
