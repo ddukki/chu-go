@@ -1,6 +1,8 @@
 package column
 
 import (
+	"unsafe"
+
 	"github.com/ClickHouse/ch-go/proto"
 )
 
@@ -42,13 +44,14 @@ func (c *Nullable[T]) Row(i int) (T, bool) {
 }
 
 func (c *Nullable[T]) DecodeColumn(r *proto.Reader, rows int) error {
-	c.Nulls = make([]bool, rows)
-	for i := 0; i < rows; i++ {
-		v, err := r.ReadByte()
-		if err != nil {
-			return err
-		}
-		c.Nulls[i] = v != 0
+	if cap(c.Nulls) >= rows {
+		c.Nulls = c.Nulls[:rows]
+	} else {
+		c.Nulls = make([]bool, rows)
+	}
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(&c.Nulls[0])), rows)
+	if err := r.ReadFull(buf); err != nil {
+		return err
 	}
 	return c.Values.DecodeColumn(r, rows)
 }
