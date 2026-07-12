@@ -281,7 +281,19 @@ Missing types (open an issue or PR): Decimal, Date, DateTime, Array, Map, IPv4, 
 
 ## Performance
 
-chu-go benchmarks competitively against ch-go, clickhouse-go, and chconn across common workloads. The key to getting peak performance is understanding column lifecycle and reuse.
+chu-go leads or ties all major select benchmarks vs ch-go, clickhouse-go, and chconn v2. Full results at [chu-go-bench/BENCHMARKS.md](https://github.com/ddukki/chu-go-bench/blob/main/BENCHMARKS.md).
+
+### Benchmark summary (1M rows, ClickHouse 26.6, Ryzen 9 6900HX)
+
+| Benchmark | chu-go | ch-go | clickhouse-go | chconn v2 |
+|-----------|--------|-------|---------------|-----------|
+| Wide (52 cols) | **573ms** | 653ms | 844ms | 583ms |
+| Nullable | **89ms** | 179ms | 215ms | 201ms |
+| LowCardinality | **19ms** | 62ms | 116ms | 24ms |
+| InsertNarrow | 170ms | 168ms | 188ms | 177ms |
+| Batch insert (500) | 0.20s | 0.20s | 0.20s | 0.20s |
+
+chu-go leads Wide, Nullable, and LowCardinality selects. All drivers cluster within ~12% on single-block inserts (network-bound) and converge at batch sizes ≥500.
 
 ### Column Reuse
 
