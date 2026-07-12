@@ -193,7 +193,7 @@ func (c *Conn) readColumnInfo() error {
 // the column name/type/CS from the wire.
 func (c *Conn) readColumnInfoBlock() error {
 	// Server always writes writeStringBinary("") before every data block.
-	if _, err := c.reader.Str(); err != nil {
+	if _, err := c.reader.StrRaw(); err != nil {
 		return &Error{Kind: KindProtocol, Message: "read table name", Err: err}
 	}
 	var bi proto.BlockInfo
@@ -217,10 +217,10 @@ func (c *Conn) readColumnInfoBlock() error {
 		return &Error{Kind: KindProtocol, Message: "expected rows=0 for column info block"}
 	}
 	for i := 0; i < int(cols); i++ {
-		if _, err := c.reader.Str(); err != nil {
+		if _, err := c.reader.StrRaw(); err != nil {
 			return &Error{Kind: KindProtocol, Message: "read column name", Err: err}
 		}
-		if _, err := c.reader.Str(); err != nil {
+		if _, err := c.reader.StrRaw(); err != nil {
 			return &Error{Kind: KindProtocol, Message: "read column type", Err: err}
 		}
 		if proto.FeatureCustomSerialization.In(c.server.Revision) {
@@ -261,7 +261,7 @@ func (c *Conn) sendCancel() {
 // then delegates to Block.DecodeBlock with Results.Auto() which handles
 // the interleaved column metadata + data format correctly.
 func (c *Conn) skipBlock() error {
-	if _, err := c.reader.Str(); err != nil {
+	if _, err := c.reader.StrRaw(); err != nil {
 		return &Error{Kind: KindProtocol, Message: "skip table name", Err: err}
 	}
 	var results proto.Results

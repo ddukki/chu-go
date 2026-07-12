@@ -50,7 +50,7 @@ code, err := c.reader.UVarInt()
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData:
 			if proto.FeatureTempTables.In(c.server.Revision) {
-				if _, err := c.reader.Str(); err != nil {
+				if _, err := c.reader.StrRaw(); err != nil {
 					return rows, &Error{Kind: KindProtocol, Message: "read temp table name", Err: err}
 				}
 			}
@@ -89,10 +89,10 @@ code, err := c.reader.UVarInt()
 			}
 
 			for i, col := range cols {
-				if _, err := c.reader.Str(); err != nil {
+				if _, err := c.reader.StrRaw(); err != nil {
 					return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d name", i), Err: err}
 				}
-				if _, err := c.reader.Str(); err != nil {
+				if _, err := c.reader.StrRaw(); err != nil {
 					return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d type", i), Err: err}
 				}
 				if proto.FeatureCustomSerialization.In(c.server.Revision) {
