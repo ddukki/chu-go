@@ -279,6 +279,118 @@ Missing types (open an issue or PR): Decimal, Date, DateTime, Array, Map, IPv4, 
 | **Connection pool** | Built-in | Separate `pool/` package |
 | **API surface** | Large (~30 packages) | Small (~4 packages) |
 
+## Performance
+
+chu-go benchmarks competitively against ch-go, clickhouse-go, and chconn across common workloads. The key to getting peak performance is understanding column lifecycle and reuse.
+
+### Column Reuse
+
+**Anti-pattern — allocating inside a loop:**
+```go
+// SLOW: each iteration allocates a fresh column + backing array
+for i := 0; i < b.N; i++ {
+    col := column.NewBase[uint64]("id")
+    c.Select(ctx, query, col)
+}
+```
+
+**Correct — allocate once, reset between iterations:**
+```go
+// FAST: capacity is reused across iterations
+col := column.NewBase[uint64]("id")
+for i := 0; i < b.N; i++ {
+    col.Data = col.Data[:0]
+    c.Select(ctx, query, col)
+}
+```
+
+All column types reuse backing array capacity on `.Data = .Data[:0]`. A single decode loop running 100× over 1M rows allocates ~once and flattens to near-zero thereafter.
+
+### String Columns
+
+chu-go's `Str` stores all string data in a contiguous `[]byte` buffer. After decode, `Data[i]` is a string header pointing into that buffer — zero per-string allocation.
+
+**Access through `Data` or `Row(i)`:**
+```go
+outName := column.NewStr("name")
+c.Select(ctx, "SELECT name FROM t", outName)
+for _, s := range outName.Data { /* ... */ }
+// or equivalently:
+for i := 0; i < outName.Len(); i++ { _ = outName.Row(i) }
+```
+
+**Writes via `Append` create independent string headers** (caller's allocation, not the internal buffer). This is a one-time cost per value and only affects inserts, not selects.
+
+### LowCardinality Access
+
+After decode, `LowCardinality` stores dict + keys without materializing into the inner column. `Row(i)` resolves `O(1)` from `dict[keys[i]]` — no allocation.
+
+**Use `Row(i)` for random access — O(1), no materialization cost:**
+```go
+lc := column.NewLowCardinality(column.NewStr("tag"))
+c.Select(ctx, query, lc)
+for i := 0; i < lc.Len(); i++ {
+    _ = lc.Row(i)  // resolves from dict, no alloc
+}
+```
+
+**Use `Values.Data` when you need the full `[]string`:**
+```go
+lc := column.NewLowCardinality(column.NewStr("tag"))
+c.Select(ctx, query, lc)
+allTags := lc.Values.Data  // triggers materialization (dict → []string)
+```
+
+Materialization copies all values from dict + keys into the inner column. This allocates once and is cached — subsequent access is free. `EncodeColumn` and `WriteColumn` also trigger materialization automatically.
+
+**Insert path unaffected:** `lc.Append(val)` writes directly to `Values`, never touches dict/keys.
+
+### Nullable Column Reset
+
+Nullable columns have two stateful fields: `Nulls` and the inner column's `Data`. Both must be reset between iterations.
+
+```go
+outVal := column.NewNullable(column.NewBase[uint64]("val"))
+for i := 0; i < b.N; i++ {
+    outVal.Nulls = outVal.Nulls[:0]
+    outVal.Data.Data = outVal.Data.Data[:0]  // inner column Data
+    c.Select(ctx, query, outVal)
+}
+```
+
+For `Nullable(Str)`:
+```go
+outStr := column.NewNullable(column.NewStr("val"))
+for i := 0; i < b.N; i++ {
+    outStr.Nulls = outStr.Nulls[:0]
+    outStr.Data.Data = outStr.Data.Data[:0]
+    c.Select(ctx, query, outStr)
+}
+```
+
+### Batch Insert
+
+Use batches of ≥500 rows. Single-block inserts are network-throughput-bound, not driver-bound — all four Go drivers cluster within ~12% at 1M rows.
+
+```go
+col := column.NewBase[uint64]("id")
+for _, batch := range chunk(rows, 500) {
+    col.Data = col.Data[:0]
+    for _, v := range batch {
+        col.Append(v.ID)
+    }
+    c.Insert(ctx, "INSERT INTO t (id) VALUES", col)
+}
+```
+
+### Why chu-go is fast
+
+- **Decode directly into `[]T` backing array.** `Base[T].DecodeColumn` reads wire bytes into `c.Data` via `unsafe` pointer reinterpretation — no intermediate buffer, no per-element copy.
+- **Capacity reuse.** All column types reuse backing arrays across decode calls after the first iteration.
+- **Lazy LowCardinality.** Dict + keys stored in wire format; `Row(i)` resolves `O(1)` without materialization.
+- **Contiguous string buffer.** `Str` stores all string bytes in one `[]byte` — zero per-string allocation on decode.
+- **Narrow LC keys.** Key indices stored as wire-width `[]byte` (uint8/16/32/64) instead of `[]int` — memory proportional to actual key range.
+
 ## Design
 
 - **Wraps ch-go wire primitives**, not a reimplementation. Uses `proto.Reader`, `proto.Writer`, `proto.Buffer` from ch-go for all wire encoding.
