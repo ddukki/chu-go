@@ -28,9 +28,10 @@ const (
 )
 
 type LowCardinality[T comparable] struct {
-	Values ColumnOf[T]
-	dict   []T   // unique keys
-	keys   []int // key indices
+	Values   ColumnOf[T]
+	dict     []T   // unique keys
+	keys     []int // key indices
+	expanded bool
 }
 
 func NewLowCardinality[T comparable](col ColumnOf[T]) *LowCardinality[T] {
@@ -43,7 +44,39 @@ func (c *LowCardinality[T]) Type() proto.ColumnType {
 	return proto.ColumnTypeLowCardinality.Sub(c.Values.Type())
 }
 
-func (c *LowCardinality[T]) Len() int { return c.Values.Len() }
+func (c *LowCardinality[T]) Len() int {
+	if c.expanded || len(c.dict) == 0 {
+		return c.Values.Len()
+	}
+	return len(c.keys)
+}
+
+func (c *LowCardinality[T]) Row(i int) T {
+	if c.expanded || len(c.dict) == 0 {
+		return c.Values.Row(i)
+	}
+	return c.dict[c.keys[i]]
+}
+
+func (c *LowCardinality[T]) ensureExpanded() {
+	if c.expanded {
+		return
+	}
+	if len(c.dict) == 0 {
+		// No dictionary — data was inserted directly via c.Values (insert path)
+		return
+	}
+	switch v := any(c.Values).(type) {
+	case *Str:
+		v.Data = v.Data[:0]
+	case *Base[T]:
+		v.Data = v.Data[:0]
+	}
+	for _, idx := range c.keys {
+		c.Values.Append(c.dict[idx])
+	}
+	c.expanded = true
+}
 
 func (c *LowCardinality[T]) EncodeState(b *proto.Buffer) {
 	b.PutInt64(int64(keySerializationVersion))
@@ -106,23 +139,26 @@ func (c *LowCardinality[T]) DecodeColumn(r *proto.Reader, rows int) error {
 		return fmt.Errorf("low cardinality keys: %w", err)
 	}
 
-	// Resolve values from dict + key indices
+	// Validate key indices
 	for _, idx := range c.keys {
 		if idx >= len(c.dict) || idx < 0 {
 			return fmt.Errorf("key index %d out of range [0, %d)", idx, len(c.dict))
 		}
-		c.Values.Append(c.dict[idx])
 	}
+
+	c.expanded = false
 	return nil
 }
 
 func (c *LowCardinality[T]) WriteColumn(w *proto.Writer) {
+	c.ensureExpanded()
 	w.ChainBuffer(func(b *proto.Buffer) {
 		_ = c.EncodeColumn(b)
 	})
 }
 
 func (c *LowCardinality[T]) EncodeColumn(b *proto.Buffer) error {
+	c.ensureExpanded()
 	n := c.Values.Len()
 	if n == 0 {
 		return nil

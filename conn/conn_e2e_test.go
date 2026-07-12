@@ -389,11 +389,11 @@ func TestSelectInsertLowCardinalityE2E(t *testing.T) {
 	if n != 3 {
 		t.Fatalf("row count: got %d, want 3", n)
 	}
-	if outID.Row(0) != 10 || outCity.Values.Row(0) != "NYC" {
-		t.Fatalf("row 0: got id=%d city=%s", outID.Row(0), outCity.Values.Row(0))
+	if outID.Row(0) != 10 || outCity.Row(0) != "NYC" {
+		t.Fatalf("row 0: got id=%d city=%s", outID.Row(0), outCity.Row(0))
 	}
-	if outCity.Values.Row(2) != "NYC" {
-		t.Fatalf("row 2 city: got %s, want NYC", outCity.Values.Row(2))
+	if outCity.Row(2) != "NYC" {
+		t.Fatalf("row 2 city: got %s, want NYC", outCity.Row(2))
 	}
 }
 

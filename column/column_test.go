@@ -167,8 +167,8 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 			t.Fatalf("len: got %d, want 6", got.Len())
 		}
 		for i, want := range []uint8{1, 2, 3, 1, 2, 3} {
-			if got.Values.Row(i) != want {
-				t.Fatalf("row %d: got %d, want %d", i, got.Values.Row(i), want)
+			if got.Row(i) != want {
+				t.Fatalf("row %d: got %d, want %d", i, got.Row(i), want)
 			}
 		}
 	})
@@ -192,8 +192,8 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 			t.Fatalf("len: got %d, want 4", got.Len())
 		}
 		for i, want := range []string{"a", "b", "a", "c"} {
-			if got.Values.Row(i) != want {
-				t.Fatalf("row %d: got %q, want %q", i, got.Values.Row(i), want)
+			if got.Row(i) != want {
+				t.Fatalf("row %d: got %q, want %q", i, got.Row(i), want)
 			}
 		}
 	})
