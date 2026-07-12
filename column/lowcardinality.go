@@ -29,9 +29,24 @@ const (
 
 type LowCardinality[T comparable] struct {
 	Values   ColumnOf[T]
-	dict     []T   // unique keys
-	keys     []int // key indices
+	dict     []T    // unique keys
+	keys     []byte // key indices (narrow wire encoding)
+	keyWidth int    // 1, 2, 4, or 8
 	expanded bool
+}
+
+func (c *LowCardinality[T]) key(i int) int {
+	switch c.keyWidth {
+	case 1:
+		return int(c.keys[i])
+	case 2:
+		return int(binary.LittleEndian.Uint16(c.keys[i*2:]))
+	case 4:
+		return int(binary.LittleEndian.Uint32(c.keys[i*4:]))
+	case 8:
+		return int(binary.LittleEndian.Uint64(c.keys[i*8:]))
+	}
+	return 0
 }
 
 func NewLowCardinality[T comparable](col ColumnOf[T]) *LowCardinality[T] {
@@ -48,14 +63,14 @@ func (c *LowCardinality[T]) Len() int {
 	if c.expanded || len(c.dict) == 0 {
 		return c.Values.Len()
 	}
-	return len(c.keys)
+	return len(c.keys) / c.keyWidth
 }
 
 func (c *LowCardinality[T]) Row(i int) T {
 	if c.expanded || len(c.dict) == 0 {
 		return c.Values.Row(i)
 	}
-	return c.dict[c.keys[i]]
+	return c.dict[c.key(i)]
 }
 
 func (c *LowCardinality[T]) ensureExpanded() {
@@ -72,8 +87,9 @@ func (c *LowCardinality[T]) ensureExpanded() {
 	case *Base[T]:
 		v.Data = v.Data[:0]
 	}
-	for _, idx := range c.keys {
-		c.Values.Append(c.dict[idx])
+	n := len(c.keys) / c.keyWidth
+	for i := 0; i < n; i++ {
+		c.Values.Append(c.dict[c.key(i)])
 	}
 	c.expanded = true
 }
@@ -134,13 +150,14 @@ func (c *LowCardinality[T]) DecodeColumn(r *proto.Reader, rows int) error {
 	}
 
 	// Decode key indices based on key type
-	c.keys = append(c.keys[:0], make([]int, rows)...)
 	if err := c.decodeKeyIndices(r, rows, kt); err != nil {
 		return fmt.Errorf("low cardinality keys: %w", err)
 	}
 
 	// Validate key indices
-	for _, idx := range c.keys {
+	n := len(c.keys) / c.keyWidth
+	for i := 0; i < n; i++ {
+		idx := c.key(i)
 		if idx >= len(c.dict) || idx < 0 {
 			return fmt.Errorf("key index %d out of range [0, %d)", idx, len(c.dict))
 		}
@@ -394,40 +411,35 @@ func (c *LowCardinality[T]) decodeDictKeys(r *proto.Reader, n int) error {
 }
 
 func (c *LowCardinality[T]) decodeKeyIndices(r *proto.Reader, rows int, kt keyType) error {
-	c.keys = c.keys[:rows]
 	switch kt {
 	case keyUInt8:
 		data, err := r.ReadRaw(rows)
 		if err != nil {
 			return err
 		}
-		for i, v := range data {
-			c.keys[i] = int(v)
-		}
+		c.keys = append(c.keys[:0], data...)
+		c.keyWidth = 1
 	case keyUInt16:
 		data, err := r.ReadRaw(rows * 2)
 		if err != nil {
 			return err
 		}
-		for i := 0; i < rows; i++ {
-			c.keys[i] = int(binary.LittleEndian.Uint16(data[i*2:]))
-		}
+		c.keys = append(c.keys[:0], data...)
+		c.keyWidth = 2
 	case keyUInt32:
 		data, err := r.ReadRaw(rows * 4)
 		if err != nil {
 			return err
 		}
-		for i := 0; i < rows; i++ {
-			c.keys[i] = int(binary.LittleEndian.Uint32(data[i*4:]))
-		}
+		c.keys = append(c.keys[:0], data...)
+		c.keyWidth = 4
 	case keyUInt64:
 		data, err := r.ReadRaw(rows * 8)
 		if err != nil {
 			return err
 		}
-		for i := 0; i < rows; i++ {
-			c.keys[i] = int(binary.LittleEndian.Uint64(data[i*8:]))
-		}
+		c.keys = append(c.keys[:0], data...)
+		c.keyWidth = 8
 	}
 	return nil
 }
