@@ -3,7 +3,7 @@ package pool
 import (
 	"github.com/jackc/puddle/v2"
 
-	"github.com/ddukki/chu-go/conn"
+	"github.com/ddukki/scorch/conn"
 )
 
 // PoolConn wraps a *conn.Conn with pool management.

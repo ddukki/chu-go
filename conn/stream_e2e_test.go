@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ddukki/chu-go/column"
+	"github.com/ddukki/scorch/column"
 )
 
 func TestSelectStreamSingleBlockE2E(t *testing.T) {

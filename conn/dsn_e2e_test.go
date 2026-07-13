@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ddukki/chu-go/column"
+	"github.com/ddukki/scorch/column"
 )
 
 func TestDSNE2E_FullAuth(t *testing.T) {

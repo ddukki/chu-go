@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+"github.com/ddukki/scorch/column"
 
-	"github.com/ddukki/chu-go/column"
-	"github.com/ddukki/chu-go/conn"
+	"github.com/ddukki/scorch/conn"
 )
 
 func TestMain(m *testing.M) {

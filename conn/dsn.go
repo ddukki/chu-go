@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ddukki/chu-go/dsn"
+	"github.com/ddukki/scorch/dsn"
 )
 
 // ParseDSN parses a ClickHouse DSN into Config.

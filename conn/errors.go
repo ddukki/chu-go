@@ -18,7 +18,7 @@ const (
 	KindInternal
 )
 
-// Error represents a chu-go error with a Kind and optional wrapped error.
+// Error represents a scorch error with a Kind and optional wrapped error.
 type Error struct {
 	Kind    Kind
 	Message string

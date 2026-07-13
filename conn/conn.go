@@ -184,7 +184,7 @@ func makeClientInfo(server proto.ServerHello, localAddr net.Addr) proto.ClientIn
 		Query:           proto.ClientQueryInitial,
 		OSUser:          "",
 		ClientHostname:  "",
-		ClientName:      "chu-go",
+		ClientName:      "scorch",
 	}
 	if addr != "" {
 		ci.InitialAddress = addr

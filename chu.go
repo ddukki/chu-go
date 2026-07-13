@@ -1,6 +1,6 @@
 package chu
 
-import "github.com/ddukki/chu-go/conn"
+import "github.com/ddukki/scorch/conn"
 
 // Config is a shortcut for conn.Config.
 type Config = conn.Config

@@ -16,7 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/ddukki/chu-go/column"
+	"github.com/ddukki/scorch/column"
 )
 
 func TestMain(m *testing.M) {

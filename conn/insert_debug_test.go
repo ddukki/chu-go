@@ -53,7 +53,7 @@ func TestInsertChGoStyleE2E(t *testing.T) {
 	r := proto.NewReader(dump)
 
 	hello := proto.ClientHello{
-		Name:            "chu-go",
+		Name:            "scorch",
 		Major:           24,
 		Minor:           3,
 		ProtocolVersion: proto.Version,
@@ -104,7 +104,7 @@ func TestInsertChGoStyleE2E(t *testing.T) {
 				Minor:           3,
 				Interface:       proto.InterfaceTCP,
 				Query:           proto.ClientQueryInitial,
-				ClientName:      "chu-go",
+				ClientName:      "scorch",
 				InitialAddress:  localAddr,
 			},
 		}
@@ -165,7 +165,7 @@ func TestInsertChGoStyleE2E(t *testing.T) {
 			Minor:           3,
 			Interface:       proto.InterfaceTCP,
 			Query:           proto.ClientQueryInitial,
-			ClientName:      "chu-go",
+			ClientName:      "scorch",
 			InitialAddress:  localAddr,
 		},
 	}

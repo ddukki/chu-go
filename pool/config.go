@@ -3,7 +3,7 @@ package pool
 import (
 	"time"
 
-	"github.com/ddukki/chu-go/conn"
+	"github.com/ddukki/scorch/conn"
 )
 
 // PoolConfig configures a connection pool.

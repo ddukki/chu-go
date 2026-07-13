@@ -144,7 +144,7 @@ func (c *Base[T]) WriteColumn(w *proto.Writer) {
 	elemSize := int(unsafe.Sizeof(zero))
 	n, err := safeMul(len(c.Data), elemSize)
 	if err != nil {
-		log.Printf("chu-go/column: encode %s safeMul %d*%d: %v", c.name, len(c.Data), elemSize, err)
+		log.Printf("scorch/column: encode %s safeMul %d*%d: %v", c.name, len(c.Data), elemSize, err)
 		return
 	}
 	switch elemSize {
@@ -152,6 +152,6 @@ func (c *Base[T]) WriteColumn(w *proto.Writer) {
 		src := unsafe.Slice((*byte)(unsafe.Pointer(&c.Data[0])), n)
 		w.ChainWrite(src)
 	default:
-		log.Printf("chu-go/column: unsupported element size %d for column %s", elemSize, c.name)
+		log.Printf("scorch/column: unsupported element size %d for column %s", elemSize, c.name)
 	}
 }

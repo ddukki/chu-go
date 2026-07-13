@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ddukki/chu-go/column"
+	"github.com/ddukki/scorch/column"
 )
 
 type dumpConn struct {
@@ -58,7 +58,7 @@ func TestConnectInsertDebug(t *testing.T) {
 	r := proto.NewReader(dump)
 
 	hello := proto.ClientHello{
-		Name:            "chu-go",
+		Name:            "scorch",
 		Major:           24,
 		Minor:           3,
 		ProtocolVersion: proto.Version,
@@ -115,7 +115,7 @@ func TestConnectInsertDebug(t *testing.T) {
 	}
 	defer c.Close()
 
-	// Now use the chu-go Insert
+	// Now use the scorch Insert
 	idCol := column.NewBase[uint64]("id")
 	idCol.Append(42)
 	nameCol := column.NewStr("name")
@@ -145,7 +145,7 @@ func TestMinimalInsertDebug(t *testing.T) {
 	r := proto.NewReader(dump)
 
 	hello := proto.ClientHello{
-		Name:            "chu-go",
+		Name:            "scorch",
 		Major:           24,
 		Minor:           3,
 		ProtocolVersion: proto.Version,
@@ -196,7 +196,7 @@ func TestMinimalInsertDebug(t *testing.T) {
 		Minor:           3,
 		Interface:       proto.InterfaceTCP,
 		Query:            proto.ClientQueryInitial,
-		ClientName:        "chu-go",
+		ClientName:        "scorch",
 		InitialAddress:   localAddr,
 	}
 
@@ -442,7 +442,7 @@ func TestQueryHexDumpE2E(t *testing.T) {
 	r := proto.NewReader(dump)
 
 	hello := proto.ClientHello{
-		Name:            "chu-go",
+		Name:            "scorch",
 		Major:           24,
 		Minor:           3,
 		ProtocolVersion: proto.Version,
@@ -479,7 +479,7 @@ func TestQueryHexDumpE2E(t *testing.T) {
 	}
 
 	// === Send SELECT 1 query + blank block, dump all bytes ===
-	fmt.Fprintf(os.Stderr, "=== SELECT 1 QUERY + BLANK (chu-go style) ===\n")
+	fmt.Fprintf(os.Stderr, "=== SELECT 1 QUERY + BLANK (scorch style) ===\n")
 	q := proto.Query{
 		Body:        "SELECT 1 AS one",
 		Stage:       proto.StageComplete,
@@ -581,7 +581,7 @@ func execQueryOnConn(w *proto.Writer, r *proto.Reader, rev int, addr string, que
 			Minor:           3,
 			Interface:       proto.InterfaceTCP,
 			Query:           proto.ClientQueryInitial,
-			ClientName:      "chu-go",
+			ClientName:      "scorch",
 			InitialAddress:  addr,
 		},
 	}

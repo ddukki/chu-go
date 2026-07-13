@@ -1,4 +1,4 @@
-module github.com/ddukki/chu-go
+module github.com/ddukki/scorch
 
 go 1.26
 

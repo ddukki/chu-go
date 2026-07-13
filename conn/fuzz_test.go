@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ddukki/chu-go/column"
+	"github.com/ddukki/scorch/column"
 )
 
 // TestFuzzRoundtripE2E exercises a full encode → Insert → Select → decode

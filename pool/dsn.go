@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ddukki/chu-go/conn"
-	"github.com/ddukki/chu-go/dsn"
+	"github.com/ddukki/scorch/conn"
+	"github.com/ddukki/scorch/dsn"
 )
 
 // ParsePoolDSN parses a clickhouse:// DSN into PoolConfig.

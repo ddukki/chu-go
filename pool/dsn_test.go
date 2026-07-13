@@ -3,7 +3,7 @@ package pool
 import (
 	"testing"
 
-	"github.com/ddukki/chu-go/conn"
+	"github.com/ddukki/scorch/conn"
 )
 
 func TestParsePoolDSNMultiHost(t *testing.T) {
