@@ -44,7 +44,7 @@ import (
 func main() {
     ctx := context.Background()
 
-    c, err := chu.Connect(ctx, chu.Config{
+    c, err := scorch.Connect(ctx, scorch.Config{
         Addr:     "localhost:9000",
         Password: "",
     })
@@ -75,7 +75,7 @@ func main() {
 ### Connect
 
 ```go
-c, err := chu.Connect(ctx, chu.Config{Addr: "localhost:9000"})
+c, err := scorch.Connect(ctx, scorch.Config{Addr: "localhost:9000"})
 ```
 
 Or via DSN:
@@ -84,7 +84,7 @@ Or via DSN:
 import "github.com/ddukki/scorch/conn"
 
 cfg, _ := conn.ParseDSN("clickhouse://user:pass@localhost:9000/mydb?dial_timeout=10s&compress=lz4")
-c, err := chu.Connect(ctx, cfg)
+c, err := scorch.Connect(ctx, cfg)
 ```
 
 `Config` fields with zero-value defaults:
@@ -226,7 +226,7 @@ p, _ := pool.New(ctx, cfg)
 import "github.com/ddukki/scorch/pool"
 
 p, _ := pool.New(ctx, pool.PoolConfig{
-    Config:              chu.Config{Addr: "localhost:9000"},
+    Config:              scorch.Config{Addr: "localhost:9000"},
     MaxConns:            10,
     HealthCheckInterval: 30 * time.Second,
 })

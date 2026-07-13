@@ -1,4 +1,4 @@
-package chu
+package scorch
 
 import "github.com/ddukki/scorch/conn"
 
