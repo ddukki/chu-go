@@ -44,10 +44,14 @@ func (c *Nullable[T]) Row(i int) (T, bool) {
 }
 
 func (c *Nullable[T]) DecodeColumn(r *proto.Reader, rows int) error {
+	if rows == 0 {
+		c.Nulls = c.Nulls[:0]
+		return c.Values.DecodeColumn(r, 0)
+	}
 	if cap(c.Nulls) >= rows {
 		c.Nulls = c.Nulls[:rows]
 	} else {
-		c.Nulls = make([]bool, rows)
+		c.Nulls = make([]bool, rows, rows*2)
 	}
 	buf := unsafe.Slice((*byte)(unsafe.Pointer(&c.Nulls[0])), rows)
 	if err := r.ReadFull(buf); err != nil {

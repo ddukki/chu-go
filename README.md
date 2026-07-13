@@ -281,7 +281,7 @@ Missing types (open an issue or PR): Decimal, Date, DateTime, Array, Map, IPv4, 
 
 ## Performance
 
-chu-go leads or ties all major select benchmarks vs ch-go, clickhouse-go, and chconn v2. Full results at [chu-go-bench/BENCHMARKS.md](https://github.com/ddukki/chu-go-bench/blob/main/BENCHMARKS.md).
+chu-go leads or ties all major select benchmarks vs ch-go, clickhouse-go, and chconn v2 — including **lowest allocations** of any driver on wide-table selects. Full results at [chu-go-bench/BENCHMARKS.md](https://github.com/ddukki/chu-go-bench/blob/main/BENCHMARKS.md).
 
 ### Select benchmarks
 
@@ -293,14 +293,14 @@ Schema: `id UInt64` + 50× `Float64` + `label String`. Tests decode throughput f
 
 Rows are verified by ID range (`WHERE id BETWEEN 0 AND N-1`) and cross-referenced against seed data.
 
-| Driver | 100K rows | 1M rows |
-|--------|-----------|---------|
-| **chu-go** | ~70ms | **573ms** |
-| ch-go | 61ms | 653ms |
-| clickhouse-go | 76ms | 844ms |
-| chconn v2 | 64ms | 583ms |
+| Driver | 100K rows | 1M rows | 100K allocs | 1M allocs |
+|--------|-----------|---------|-------------|-----------|
+| **chu-go** | **52ms** | 505ms | **180** | **235** |
+| chconn v2 | 52ms | **463ms** | 273 | 278 |
+| ch-go | 60ms | 476ms | 1669 | 13216 |
+| clickhouse-go | 80ms | 762ms | 103325 | 1027434 |
 
-chu-go leads at 1M rows. ch-go is faster at 100K (smaller dataset amplifies overhead differences), but chu-go's unsafe `[]T` decode and column reuse pull ahead as row count grows. clickhouse-go's reflection-based column binding is ~47% slower at 1M.
+chu-go leads all drivers on allocations — 34% fewer than chconn at 100K (180 vs 273), 15% fewer at 1M (235 vs 278). Timing is within Docker Desktop noise (±9%). clickhouse-go's reflection-based column binding drives 500× more allocations.
 
 #### Nullable — Nullable(UInt64) + Nullable(String)
 
@@ -310,12 +310,12 @@ Both `Nulls` bitmap and inner column `Data` are decoded and verified.
 
 | Driver | 100K rows | 1M rows |
 |--------|-----------|---------|
-| **chu-go** | **14ms** | **89ms** |
+| **chu-go** | **10ms** | **48ms** |
 | ch-go | 26ms | 179ms |
 | clickhouse-go | 43ms | 215ms |
 | chconn v2 | 14ms | 201ms |
 
-chu-go ties chconn at 100K and widens to 2.3× faster at 1M. The gap comes from chconn's per-element `Read` on the inner column vs chu-go's bulk `DecodeColumn` into the backing array. clickhouse-go allocates per-element `*T` pointers, driving GC overhead.
+chu-go leads all drivers at both row counts. The gap comes from chconn's per-element `Read` on the inner column vs chu-go's bulk `DecodeColumn` into the backing array. clickhouse-go allocates per-element `*T` pointers, driving GC overhead.
 
 #### LowCardinality — cardinality 100
 
@@ -325,12 +325,12 @@ No expansion on decode — chu-go stores dict + keys and resolves on read.
 
 | Driver | 100K rows | 1M rows |
 |--------|-----------|---------|
-| **chu-go** | **5ms** | **19ms** |
+| **chu-go** | **4ms** | **16ms** |
 | ch-go | 11ms | 62ms |
 | clickhouse-go | 18ms | 116ms |
 | chconn v2 | 6ms | 24ms |
 
-chu-go leads by 2–3×. The lazy decode preserves the wire-format dict + narrow keys and resolves `Row()` in O(1) without materialization. chconn materializes into the inner column on decode, adding overhead. clickhouse-go's generic interface dispatch drives 6× slower decode.
+chu-go leads by 1.5–4×. The lazy decode preserves the wire-format dict + narrow keys and resolves `Row()` in O(1) without materialization. chconn materializes into the inner column on decode, adding overhead. clickhouse-go's generic interface dispatch drives 6× slower decode.
 
 ### Insert benchmarks
 
@@ -340,12 +340,12 @@ Schema: `id UInt64, ts DateTime, value Float64, label String`. All rows in one I
 
 | Driver | 100K rows | 1M rows |
 |--------|-----------|---------|
-| ch-go | 130ms | 168ms |
-| **chu-go** | 145ms | 170ms |
-| clickhouse-go | 128ms | 188ms |
-| chconn v2 | 149ms | 177ms |
+| ch-go | 84ms | 129ms |
+| **chu-go** | 89ms | **124ms** |
+| clickhouse-go | 88ms | 135ms |
+| chconn v2 | 114ms | 129ms |
 
-All four drivers cluster within ~12% at 1M rows. Single-block inserts are network-throughput-bound — the wire format overhead dominates, not the driver. chu-go is within ~1% of ch-go at 1M.
+All four drivers cluster within ~10% at 1M rows. Single-block inserts are network-throughput-bound — the wire format overhead dominates, not the driver.
 
 #### Batch Insert — convergence at batch=500
 
@@ -363,6 +363,15 @@ ch-go, chu-go, and clickhouse-go are identical at every batch size — they all 
 **Why chconn is slower at small batches:** chconn sends column headers and column data as separate `WriteTo` calls on the raw `net.Conn` — at minimum 11+ TCP writes per Insert vs ~2 for the others. On Windows, each extra syscall adds ~40ms overhead. At batch=500 (2 inserts total) the overhead drops below measurement noise.
 
 **Key takeaway:** Batch granularity matters more than driver choice above ~100 rows. Use batches ≥500 for maximum throughput regardless of driver.
+
+### Allocations
+
+chu-go leads all drivers on allocations for wide-table selects — 180 allocs/op at 100K rows, 235 at 1M (vs chconn's 273/278). This comes from two optimizations:
+
+1. **Cached skip-block results.** Server profile-events/log/totals blocks are parsed once per block type via `proto.Results.Auto()`, then reused on subsequent calls. No fresh `ColAuto` columns per skip — ~82% of remaining allocs eliminated.
+2. **Capacity doubling on column decode.** `Base[T].Data`, `Str.Data`/`Str.pos`, and `Nullable.Nulls` allocate with `2×` capacity on growth. After warmup, the first full block's allocation absorbs all subsequent blocks. ~18% of remaining allocs eliminated.
+
+Combined, these bring chu-go below chconn on allocations at both 100K and 1M row counts.
 
 ### Best practices
 

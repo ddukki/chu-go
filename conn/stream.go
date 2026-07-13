@@ -44,16 +44,7 @@ func (c *Conn) SelectStream(ctx context.Context, query string) (*SelectStream, e
 		Info:        makeClientInfo(c.server, c.localAddr),
 		Settings:    c.cfg.Settings,
 	}
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		q.EncodeAware(b, c.server.Revision)
-	})
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		proto.ClientCodeData.Encode(b)
-		proto.ClientData{}.EncodeAware(b, c.server.Revision)
-		block := proto.Block{Info: proto.BlockInfo{BucketNum: 0}}
-		block.EncodeAware(b, c.server.Revision)
-	})
-	if _, err := c.writer.Flush(); err != nil {
+	if err := c.writeQuery(q); err != nil {
 		c.unlock()
 		return nil, &Error{Kind: KindNetwork, Message: "flush query+blank", Err: err}
 	}
@@ -241,21 +232,21 @@ func (s *SelectStream) Next() bool {
 			}
 
 		case proto.ServerProfileEvents:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerProfileEvents); err != nil {
 				s.err = err
 				s.done = true
 				return false
 			}
 
 		case proto.ServerCodeLog:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeLog); err != nil {
 				s.err = err
 				s.done = true
 				return false
 			}
 
 		case proto.ServerCodeTotals, proto.ServerCodeExtremes:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeTotals); err != nil {
 				s.err = err
 				s.done = true
 				return false
@@ -293,7 +284,7 @@ func (s *SelectStream) cancel() {
 		}
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData:
-			c.skipBlock()
+			c.skipBlock(proto.ServerCodeData)
 		case proto.ServerCodeProgress:
 			var p proto.Progress
 			p.DecodeAware(c.reader, c.server.Revision)
@@ -304,9 +295,9 @@ func (s *SelectStream) cancel() {
 			var ex proto.Exception
 			ex.DecodeAware(c.reader, c.server.Revision)
 		case proto.ServerProfileEvents, proto.ServerCodeLog:
-			c.skipBlock()
+			c.skipBlock(proto.ServerProfileEvents)
 		case proto.ServerCodeTotals, proto.ServerCodeExtremes:
-			c.skipBlock()
+			c.skipBlock(proto.ServerCodeTotals)
 		case proto.ServerCodeTableColumns:
 			var tc proto.TableColumns
 			tc.DecodeAware(c.reader, int(c.server.Revision))
@@ -359,18 +350,7 @@ func (c *Conn) InsertStream(ctx context.Context, query string) (*InsertStream, e
 		Settings:    c.cfg.Settings,
 	}
 
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		q.EncodeAware(b, c.server.Revision)
-	})
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		proto.ClientCodeData.Encode(b)
-		proto.ClientData{}.EncodeAware(b, c.server.Revision)
-		block := proto.Block{
-			Info: proto.BlockInfo{BucketNum: 0},
-		}
-		block.EncodeAware(b, c.server.Revision)
-	})
-	if _, err := c.writer.Flush(); err != nil {
+	if err := c.writeQuery(q); err != nil {
 		c.unlock()
 		return nil, &Error{Kind: KindNetwork, Message: "flush query+blank", Err: err}
 	}
@@ -504,7 +484,7 @@ func (s *InsertStream) Close() error {
 			}
 
 		case proto.ServerCodeData:
-			if err := s.c.skipBlock(); err != nil {
+			if err := s.c.skipBlock(proto.ServerCodeData); err != nil {
 				s.releaseFn()
 				return err
 			}
@@ -524,13 +504,13 @@ func (s *InsertStream) Close() error {
 			}
 
 		case proto.ServerProfileEvents:
-			if err := s.c.skipBlock(); err != nil {
+			if err := s.c.skipBlock(proto.ServerProfileEvents); err != nil {
 				s.releaseFn()
 				return err
 			}
 
 		case proto.ServerCodeLog:
-			if err := s.c.skipBlock(); err != nil {
+			if err := s.c.skipBlock(proto.ServerCodeLog); err != nil {
 				s.releaseFn()
 				return err
 			}

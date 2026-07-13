@@ -96,7 +96,7 @@ func (c *Base[T]) DecodeColumn(r *proto.Reader, rows int) error {
 	if cap(c.Data) >= rows {
 		c.Data = c.Data[:rows]
 	} else {
-		c.Data = make([]T, rows)
+		c.Data = make([]T, rows, rows*2)
 	}
 	switch elemSize {
 	case 1, 2, 4, 8:

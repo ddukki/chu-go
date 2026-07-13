@@ -66,13 +66,16 @@ func (c *Str) DecodeColumn(r *proto.Reader, rows int) error {
 		c.pos = c.pos[:0]
 		return nil
 	}
+	if c.vib == nil {
+		c.vib = make([]byte, 1)
+	}
 
 	c.buf = c.buf[:0]
 	c.pos = c.pos[:0]
 
 	want := rows + 1
 	if cap(c.pos) < want {
-		c.pos = make([]int, want)
+		c.pos = make([]int, want, want*2)
 	}
 	c.pos = c.pos[:want]
 
@@ -102,7 +105,7 @@ func (c *Str) DecodeColumn(r *proto.Reader, rows int) error {
 	c.pos[rows] = end
 
 	if cap(c.Data) < rows {
-		c.Data = make([]string, rows)
+		c.Data = make([]string, rows, rows*2)
 	} else {
 		c.Data = c.Data[:rows]
 	}

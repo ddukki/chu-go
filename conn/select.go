@@ -20,16 +20,7 @@ func (c *Conn) Select(ctx context.Context, query string, cols ...Column) (int, e
 		Info:        makeClientInfo(c.server, c.localAddr),
 		Settings:    c.cfg.Settings,
 	}
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		q.EncodeAware(b, c.server.Revision)
-	})
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		proto.ClientCodeData.Encode(b)
-		proto.ClientData{}.EncodeAware(b, c.server.Revision)
-		block := proto.Block{Info: proto.BlockInfo{BucketNum: 0}}
-		block.EncodeAware(b, c.server.Revision)
-	})
-	if _, err := c.writer.Flush(); err != nil {
+	if err := c.writeQuery(q); err != nil {
 		return 0, &Error{Kind: KindNetwork, Message: "flush query+blank", Err: err}
 	}
 
@@ -42,77 +33,18 @@ func (c *Conn) Select(ctx context.Context, query string, cols ...Column) (int, e
 		default:
 		}
 
-code, err := c.reader.UVarInt()
+		code, err := c.reader.UVarInt()
 		if err != nil {
 			return rows, &Error{Kind: KindNetwork, Message: "read server code", Err: err}
 		}
 
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData:
-			if proto.FeatureTempTables.In(c.server.Revision) {
-				if _, err := c.reader.StrRaw(); err != nil {
-					return rows, &Error{Kind: KindProtocol, Message: "read temp table name", Err: err}
-				}
-			}
-			if proto.FeatureBlockInfo.In(c.server.Revision) {
-				var info proto.BlockInfo
-				if err := info.Decode(c.reader); err != nil {
-					return rows, &Error{Kind: KindProtocol, Message: "decode block info", Err: err}
-				}
-			}
-
-			blockCols, err := c.reader.Int()
+			added, err := c.handleDataBlock(cols)
 			if err != nil {
-				return rows, &Error{Kind: KindProtocol, Message: "decode block columns", Err: err}
+				return rows, err
 			}
-			blockRows, err := c.reader.Int()
-			if err != nil {
-				return rows, &Error{Kind: KindProtocol, Message: "decode block rows", Err: err}
-			}
-
-			if blockCols > 1_000_000 || blockCols < 0 {
-				return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("block columns %d out of range", blockCols)}
-			}
-			if blockRows > 100_000_000 || blockRows < 0 {
-				return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("block rows %d out of range", blockRows)}
-			}
-
-			if blockCols == 0 && blockRows == 0 {
-				continue
-			}
-
-			if len(cols) != blockCols {
-				return rows, &Error{
-					Kind:    KindProtocol,
-					Message: fmt.Sprintf("column count mismatch: server sent %d, got %d", blockCols, len(cols)),
-				}
-			}
-
-			for i, col := range cols {
-				if _, err := c.reader.StrRaw(); err != nil {
-					return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d name", i), Err: err}
-				}
-				if _, err := c.reader.StrRaw(); err != nil {
-					return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d type", i), Err: err}
-				}
-				if proto.FeatureCustomSerialization.In(c.server.Revision) {
-					if _, err := c.reader.Bool(); err != nil {
-						return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d custom serialization", i), Err: err}
-					}
-				}
-				if blockRows > 0 {
-					if s, ok := col.(StateDecoder); ok {
-						if err := s.DecodeState(c.reader); err != nil {
-							return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("decode state column %d [%s]", i, col.Name()), Err: err}
-						}
-					}
-					if err := col.DecodeColumn(c.reader, blockRows); err != nil {
-						return rows, &Error{Kind: KindProtocol, Message: fmt.Sprintf("decode column %d [%s]", i, col.Name()), Err: err}
-					}
-				}
-			}
-
-			rows += blockRows
+			rows += added
 
 		case proto.ServerCodeEndOfStream:
 			return rows, nil
@@ -143,20 +75,94 @@ code, err := c.reader.UVarInt()
 			}
 
 		case proto.ServerProfileEvents:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerProfileEvents); err != nil {
 				return rows, err
 			}
 
 		case proto.ServerCodeLog:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeLog); err != nil {
 				return rows, err
 			}
 
 		case proto.ServerCodeTotals, proto.ServerCodeExtremes:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeTotals); err != nil {
 				return rows, err
 			}
 		default:
 		}
 	}
+}
+
+// handleDataBlock reads one data block from the server response.
+// Temp table name is uncompressed; block body is compressed if enabled.
+func (c *Conn) handleDataBlock(cols []Column) (int, error) {
+	if proto.FeatureTempTables.In(c.server.Revision) {
+		if _, err := c.reader.StrRaw(); err != nil {
+			return 0, &Error{Kind: KindProtocol, Message: "read temp table name", Err: err}
+		}
+	}
+	if c.cfg.Compression == CompressionEnabled {
+		c.reader.EnableCompression()
+		defer c.reader.DisableCompression()
+	}
+
+	if proto.FeatureBlockInfo.In(c.server.Revision) {
+		var info proto.BlockInfo
+		if err := info.Decode(c.reader); err != nil {
+			return 0, &Error{Kind: KindProtocol, Message: "decode block info", Err: err}
+		}
+	}
+
+	blockCols, err := c.reader.Int()
+	if err != nil {
+		return 0, &Error{Kind: KindProtocol, Message: "decode block columns", Err: err}
+	}
+	blockRows, err := c.reader.Int()
+	if err != nil {
+		return 0, &Error{Kind: KindProtocol, Message: "decode block rows", Err: err}
+	}
+
+	if blockCols > 1_000_000 || blockCols < 0 {
+		return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("block columns %d out of range", blockCols)}
+	}
+	if blockRows > 100_000_000 || blockRows < 0 {
+		return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("block rows %d out of range", blockRows)}
+	}
+
+	if blockCols == 0 && blockRows == 0 {
+		return 0, nil
+	}
+
+	if len(cols) != blockCols {
+		return 0, &Error{
+			Kind:    KindProtocol,
+			Message: fmt.Sprintf("column count mismatch: server sent %d, got %d", blockCols, len(cols)),
+		}
+	}
+
+	for i, col := range cols {
+		if _, err := c.reader.StrRaw(); err != nil {
+			return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d name", i), Err: err}
+		}
+		if _, err := c.reader.StrRaw(); err != nil {
+			return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d type", i), Err: err}
+		}
+		if proto.FeatureCustomSerialization.In(c.server.Revision) {
+			if _, err := c.reader.Bool(); err != nil {
+				return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("read column %d custom serialization", i), Err: err}
+			}
+		}
+		if blockRows > 0 {
+			if s, ok := col.(StateDecoder); ok {
+				if err := s.DecodeState(c.reader); err != nil {
+					return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("decode state column %d [%s]", i, col.Name()), Err: err}
+				}
+			}
+			if err := col.DecodeColumn(c.reader, blockRows); err != nil {
+				return 0, &Error{Kind: KindProtocol, Message: fmt.Sprintf("decode column %d [%s]", i, col.Name()), Err: err}
+			}
+		}
+	}
+
+	return blockRows, nil
 }

@@ -26,8 +26,12 @@ type Conn struct {
 	cfg   Config
 	reader   *proto.Reader
 	writer   *proto.Writer
-	server   proto.ServerHello
-	localAddr net.Addr
+	server      proto.ServerHello
+	localAddr   net.Addr
+	prefixBytes []byte
+	queryBuf    *proto.Buffer
+	skipResults     proto.Results
+	skipResultsCode proto.ServerCode
 
 	OnProgress     func(proto.Progress)
 	OnProfile      func(proto.Profile)
@@ -178,4 +182,29 @@ func makeClientInfo(server proto.ServerHello, localAddr net.Addr) proto.ClientIn
 		ci.InitialAddress = addr
 	}
 	return ci
+}
+
+func (c *Conn) encodePrefix() {
+	if c.prefixBytes != nil {
+		return
+	}
+	var buf proto.Buffer
+	proto.ClientCodeData.Encode(&buf)
+	proto.ClientData{}.EncodeAware(&buf, c.server.Revision)
+	block := proto.Block{Info: proto.BlockInfo{BucketNum: 0}}
+	block.EncodeAware(&buf, c.server.Revision)
+	c.prefixBytes = buf.Buf
+	c.queryBuf = new(proto.Buffer)
+}
+
+// writeQuery encodes and flushes a query with its trailing prefix
+// (ClientCodeData + blank block). No closures, no heap allocs.
+func (c *Conn) writeQuery(q proto.Query) error {
+	c.encodePrefix()
+	c.queryBuf.Reset()
+	q.EncodeAware(c.queryBuf, c.server.Revision)
+	c.writer.ChainWrite(c.queryBuf.Buf)
+	c.writer.ChainWrite(c.prefixBytes)
+	_, err := c.writer.Flush()
+	return err
 }

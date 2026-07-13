@@ -20,16 +20,7 @@ func (c *Conn) Exec(ctx context.Context, query string) error {
 		Info:        makeClientInfo(c.server, c.localAddr),
 		Settings:    c.cfg.Settings,
 	}
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		q.EncodeAware(b, c.server.Revision)
-	})
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		proto.ClientCodeData.Encode(b)
-		proto.ClientData{}.EncodeAware(b, c.server.Revision)
-		block := proto.Block{Info: proto.BlockInfo{BucketNum: 0}}
-		block.EncodeAware(b, c.server.Revision)
-	})
-	if _, err := c.writer.Flush(); err != nil {
+	if err := c.writeQuery(q); err != nil {
 		return &Error{Kind: KindNetwork, Message: "flush query+blank", Err: err}
 	}
 
@@ -48,7 +39,7 @@ func (c *Conn) Exec(ctx context.Context, query string) error {
 
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData, proto.ServerCodeTotals, proto.ServerCodeExtremes:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeData); err != nil {
 				return err
 			}
 		case proto.ServerCodeTableColumns:
@@ -81,11 +72,11 @@ func (c *Conn) Exec(ctx context.Context, query string) error {
 				c.OnProfile(p)
 			}
 		case proto.ServerProfileEvents:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerProfileEvents); err != nil {
 				return err
 			}
 		case proto.ServerCodeLog:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeLog); err != nil {
 				return err
 			}
 		default:
@@ -172,12 +163,12 @@ func (c *Conn) readColumnInfo() error {
 			}
 
 		case proto.ServerProfileEvents:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerProfileEvents); err != nil {
 				return &Error{Kind: KindProtocol, Message: "skip profile events", Err: err}
 			}
 
 		case proto.ServerCodeLog:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeLog); err != nil {
 				return &Error{Kind: KindProtocol, Message: "skip log", Err: err}
 			}
 
@@ -195,6 +186,10 @@ func (c *Conn) readColumnInfoBlock() error {
 	// Server always writes writeStringBinary("") before every data block.
 	if _, err := c.reader.StrRaw(); err != nil {
 		return &Error{Kind: KindProtocol, Message: "read table name", Err: err}
+	}
+	if c.cfg.Compression == CompressionEnabled {
+		c.reader.EnableCompression()
+		defer c.reader.DisableCompression()
 	}
 	var bi proto.BlockInfo
 	if proto.FeatureBlockInfo.In(c.server.Revision) {
@@ -258,15 +253,21 @@ func (c *Conn) sendCancel() {
 // skipBlock reads and discards a data block sent by the server.  Server
 // always writes writeStringBinary("") before every block (unconditional, not
 // gated by FeatureTempTables).  Reads table name first to align the stream,
-// then delegates to Block.DecodeBlock with Results.Auto() which handles
-// the interleaved column metadata + data format correctly.
-func (c *Conn) skipBlock() error {
+// then delegates to Block.DecodeBlock with cached proto.Results for reuse.
+func (c *Conn) skipBlock(code proto.ServerCode) error {
 	if _, err := c.reader.StrRaw(); err != nil {
 		return &Error{Kind: KindProtocol, Message: "skip table name", Err: err}
 	}
-	var results proto.Results
+	if c.cfg.Compression == CompressionEnabled {
+		c.reader.EnableCompression()
+		defer c.reader.DisableCompression()
+	}
+	if c.skipResultsCode != code {
+		c.skipResults = nil
+		c.skipResultsCode = code
+	}
 	var block proto.Block
-	if err := block.DecodeBlock(c.reader, c.server.Revision, results.Auto()); err != nil {
+	if err := block.DecodeBlock(c.reader, c.server.Revision, c.skipResults.Auto()); err != nil {
 		return &Error{Kind: KindProtocol, Message: "skip block", Err: err}
 	}
 	return nil

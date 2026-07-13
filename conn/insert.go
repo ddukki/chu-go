@@ -38,18 +38,7 @@ func (c *Conn) Insert(ctx context.Context, query string, cols ...Column) error {
 	// Step 1: Send query + blank block together (matching ch-go's sendQuery pattern).
 	// The blank block signals end-of-external-data to the server, which then
 	// responds with column info for INSERT queries.
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		q.EncodeAware(b, c.server.Revision)
-	})
-	c.writer.ChainBuffer(func(b *proto.Buffer) {
-		proto.ClientCodeData.Encode(b)
-		proto.ClientData{}.EncodeAware(b, c.server.Revision)
-		block := proto.Block{
-			Info: proto.BlockInfo{BucketNum: 0},
-		}
-		block.EncodeAware(b, c.server.Revision)
-	})
-	if _, err := c.writer.Flush(); err != nil {
+	if err := c.writeQuery(q); err != nil {
 		return &Error{Kind: KindNetwork, Message: "flush query+blank", Err: err}
 	}
 
@@ -136,7 +125,7 @@ func (c *Conn) Insert(ctx context.Context, query string, cols ...Column) error {
 			}
 
 		case proto.ServerCodeData:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeData); err != nil {
 				return err
 			}
 
@@ -153,12 +142,12 @@ func (c *Conn) Insert(ctx context.Context, query string, cols ...Column) error {
 			}
 
 		case proto.ServerProfileEvents:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerProfileEvents); err != nil {
 				return err
 			}
 
 		case proto.ServerCodeLog:
-			if err := c.skipBlock(); err != nil {
+			if err := c.skipBlock(proto.ServerCodeLog); err != nil {
 				return err
 			}
 
