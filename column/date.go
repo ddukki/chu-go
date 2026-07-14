@@ -44,7 +44,7 @@ func (c *DateColumn) AppendArr(vs []time.Time) {
 
 // Row returns the time value at index i (UTC date).
 func (c *DateColumn) Row(i int) time.Time {
-	return time.Unix(int64(c.Data[i])*86400, 0)
+	return time.Unix(int64(c.Data[i])*86400, 0).UTC()
 }
 
 // DecodeColumn decodes Date rows from the wire protocol.
