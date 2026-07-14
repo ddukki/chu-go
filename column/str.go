@@ -8,8 +8,8 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
-// Str is a String column with contiguous buffer storage.
-type Str struct {
+// StrColumn is a String column with contiguous buffer storage.
+type StrColumn struct {
 	name string
 	Data []string
 	buf  []byte // contiguous string data
@@ -17,15 +17,15 @@ type Str struct {
 	vib  []byte // 1-byte read buffer for inline UVarint (heap-resident, no escape)
 }
 
-// NewStr creates a Str column with the given column name.
-func NewStr(name string) *Str {
-	return &Str{name: name, vib: make([]byte, 1)}
+// NewStrColumn creates a StrColumn with the given column name.
+func NewStrColumn(name string) *StrColumn {
+	return &StrColumn{name: name, vib: make([]byte, 1)}
 }
 
 // readUVarint reads a UVarint from r using c.vib (heap-resident buffer).
 // Uses r.Read directly (bufio.Reader.Read) instead of r.ReadByte (7 call frames),
 // cutting the call chain to 2 frames.
-func (c *Str) readUVarint(r *proto.Reader) (int, error) {
+func (c *StrColumn) readUVarint(r *proto.Reader) (int, error) {
 	var x uint64
 	var s uint
 	for i := 0; i < 10; i++ {
@@ -50,28 +50,28 @@ func (c *Str) readUVarint(r *proto.Reader) (int, error) {
 }
 
 // Name returns the column name.
-func (c *Str) Name() string { return c.name }
+func (c *StrColumn) Name() string { return c.name }
 
 // Type returns proto.ColumnTypeString.
-func (c *Str) Type() proto.ColumnType { return proto.ColumnTypeString }
+func (c *StrColumn) Type() proto.ColumnType { return proto.ColumnTypeString }
 
 // Len returns the number of elements in the column.
-func (c *Str) Len() int { return len(c.Data) }
+func (c *StrColumn) Len() int { return len(c.Data) }
 
 // Append adds a single string value to the column.
-func (c *Str) Append(v string) { c.Data = append(c.Data, v) }
+func (c *StrColumn) Append(v string) { c.Data = append(c.Data, v) }
 
 // AppendArr adds multiple string values to the column.
-func (c *Str) AppendArr(v []string) { c.Data = append(c.Data, v...) }
+func (c *StrColumn) AppendArr(v []string) { c.Data = append(c.Data, v...) }
 
 // Row returns the value at index i.
-func (c *Str) Row(i int) string { return c.Data[i] }
+func (c *StrColumn) Row(i int) string { return c.Data[i] }
 
 // Reset clears the column data without releasing the backing array.
-func (c *Str) Reset() { c.Data = c.Data[:0] }
+func (c *StrColumn) Reset() { c.Data = c.Data[:0] }
 
 // DecodeColumn decodes string rows from the wire protocol.
-func (c *Str) DecodeColumn(r *proto.Reader, rows int) error {
+func (c *StrColumn) DecodeColumn(r *proto.Reader, rows int) error {
 	if rows == 0 {
 		c.Data = c.Data[:0]
 		c.buf = c.buf[:0]
@@ -131,7 +131,7 @@ func (c *Str) DecodeColumn(r *proto.Reader, rows int) error {
 }
 
 // EncodeColumn encodes string data to the wire buffer.
-func (c *Str) EncodeColumn(b *proto.Buffer) error {
+func (c *StrColumn) EncodeColumn(b *proto.Buffer) error {
 	for _, v := range c.Data {
 		b.PutString(v)
 	}
@@ -139,7 +139,7 @@ func (c *Str) EncodeColumn(b *proto.Buffer) error {
 }
 
 // WriteColumn writes the string column to the wire writer.
-func (c *Str) WriteColumn(w *proto.Writer) {
+func (c *StrColumn) WriteColumn(w *proto.Writer) {
 	w.ChainBuffer(func(b *proto.Buffer) {
 		for _, v := range c.Data {
 			b.PutString(v)

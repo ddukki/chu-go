@@ -81,8 +81,8 @@ func TestDSNE2E_InsertWithDSN(t *testing.T) {
 	if err := c.Exec(ctx, "CREATE TABLE IF NOT EXISTS test_dsn_e2e (id UInt64, name String) ENGINE = Memory"); err != nil {
 		t.Fatal(err)
 	}
-	colID := &column.Base[uint64]{}
-	colName := &column.Str{}
+	colID := &column.BaseColumn[uint64]{}
+	colName := &column.StrColumn{}
 	colID.Data = append(colID.Data, 42)
 	colName.Data = append(colName.Data, "dsn-test")
 	if err := c.Insert(ctx, "INSERT INTO test_dsn_e2e (id, name) VALUES", colID, colName); err != nil {

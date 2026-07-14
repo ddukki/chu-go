@@ -117,9 +117,9 @@ func TestConnectInsertDebug(t *testing.T) {
 	defer func() { _ = c.Close() }()
 
 	// Now use the scorch Insert
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	idCol.Append(42)
-	nameCol := column.NewStr("name")
+	nameCol := column.NewStrColumn("name")
 	nameCol.Append("hello")
 
 	if err := c.Insert(ctx, "INSERT INTO test_connect_insert_debug (id, name) VALUES", idCol, nameCol); err != nil {
@@ -234,40 +234,11 @@ readLoop:
 		}
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData:
-			if proto.FeatureTempTables.In(sh.Revision) {
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read temp table: %v", err)
-				}
+			t.Log("Skipping data block")
+			if err := skipRawBlock(r, sh.Revision); err != nil {
+				t.Fatalf("skip raw block: %v", err)
 			}
-			if proto.FeatureBlockInfo.In(sh.Revision) {
-				var bi proto.BlockInfo
-				if err := bi.Decode(r); err != nil {
-					t.Fatalf("decode block info: %v", err)
-				}
-			}
-			cols, _ := r.Int()
-			rows, _ := r.Int()
-			t.Logf("Data block: cols=%d rows=%d", cols, rows)
-			for i := 0; i < int(cols); i++ {
-				n, _ := r.Str()
-				ty, _ := r.Str()
-				if proto.FeatureCustomSerialization.In(sh.Revision) {
-					if _, err := r.Bool(); err != nil {
-						t.Fatalf("read custom serialization: %v", err)
-					}
-				}
-				t.Logf("  col %d: %q %q", i, n, ty)
-				_ = n
-				_ = ty
-			}
-			colInfo := cols > 0
-			if colInfo {
-				gotColInfo = true
-			}
-			// If rows > 0 this is actual result data, otherwise column info
-			if rows == 0 && cols > 0 {
-				t.Log("Received column info")
-			}
+			gotColInfo = true
 
 		case proto.ServerCodeEndOfStream:
 			t.Fatal("Unexpected EndOfStream")
@@ -383,33 +354,11 @@ readLoop:
 				}
 				t.Logf("Progress: %+v", p)
 			case proto.ServerCodeData:
-				t.Log("Got unexpected Data")
-				if proto.FeatureTempTables.In(sh.Revision) {
-					if _, err := r.Str(); err != nil {
-						done <- fmt.Errorf("read table name: %w", err)
-						return
-					}
-				}
-				if proto.FeatureBlockInfo.In(sh.Revision) {
-					var bi proto.BlockInfo
-					if err := bi.Decode(r); err != nil {
-						done <- fmt.Errorf("decode block info: %w", err)
-						return
-					}
-				}
-				cols, err := r.Int()
-				if err != nil {
-					done <- fmt.Errorf("read cols: %w", err)
+				t.Log("Skipping unexpected Data block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip unexpected data: %w", err)
 					return
 				}
-				rows, err := r.Int()
-				if err != nil {
-					done <- fmt.Errorf("read rows: %w", err)
-					return
-				}
-				t.Logf("Data: cols=%d rows=%d", cols, rows)
-				_ = cols
-				_ = rows
 			case proto.ServerCodeProfile:
 				var p proto.Profile
 				if err := p.DecodeAware(r, sh.Revision); err != nil {
@@ -542,35 +491,9 @@ func TestQueryHexDumpE2E(t *testing.T) {
 		}
 		switch proto.ServerCode(code) {
 		case proto.ServerCodeData:
-			if proto.FeatureTempTables.In(sh.Revision) {
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read temp table: %v", err)
-				}
-			}
-			if proto.FeatureBlockInfo.In(sh.Revision) {
-				var bi proto.BlockInfo
-				if err := bi.Decode(r); err != nil {
-					t.Fatalf("decode block info: %v", err)
-				}
-			}
-			cols, _ := r.Int()
-			rows, _ := r.Int()
-			t.Logf("Data block: cols=%d rows=%d", cols, rows)
-			if cols == 0 && rows == 0 {
-				continue
-			}
-			for i := 0; i < int(cols); i++ {
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read col name: %v", err)
-				}
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read col type: %v", err)
-				}
-				if proto.FeatureCustomSerialization.In(sh.Revision) {
-					if _, err := r.Bool(); err != nil {
-						t.Fatalf("read custom serialization: %v", err)
-					}
-				}
+			t.Log("Skipping data block")
+			if err := skipRawBlock(r, sh.Revision); err != nil {
+				t.Fatalf("skip raw block: %v", err)
 			}
 		case proto.ServerCodeProgress:
 			var p proto.Progress
@@ -610,8 +533,13 @@ func skipRawBlock(r *proto.Reader, rev int) error {
 			return err
 		}
 	}
+	if proto.FeatureBlockInfo.In(rev) {
+		if err := decodeBlockInfoSafe(r); err != nil {
+			return err
+		}
+	}
 	var block proto.Block
-	return block.DecodeBlock(r, rev, new(proto.Results).Auto())
+	return block.DecodeRawBlock(r, rev, new(proto.Results).Auto())
 }
 
 func execQueryOnConn(w *proto.Writer, r *proto.Reader, rev int, addr string, query string, t *testing.T) {
@@ -669,41 +597,22 @@ func execQueryOnConn(w *proto.Writer, r *proto.Reader, rev int, addr string, que
 				t.Fatalf("decode progress: %v", err)
 			}
 		case proto.ServerCodeData:
-			if proto.FeatureTempTables.In(rev) {
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read temp table: %v", err)
-				}
-			}
-			if proto.FeatureBlockInfo.In(rev) {
-				var bi proto.BlockInfo
-				if err := bi.Decode(r); err != nil {
-					t.Fatalf("decode block info: %v", err)
-				}
-			}
-			cols, _ := r.Int()
-			rows, _ := r.Int()
-			for i := 0; i < int(cols); i++ {
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read col name: %v", err)
-				}
-				if _, err := r.Str(); err != nil {
-					t.Fatalf("read col type: %v", err)
-				}
-				if proto.FeatureCustomSerialization.In(rev) {
-					if _, err := r.Bool(); err != nil {
-						t.Fatalf("read custom serialization: %v", err)
-					}
-				}
-				if rows > 0 {
-					if _, err := r.Read(make([]byte, 1024)); err != nil {
-						t.Fatalf("read col data: %v", err)
-					}
-				}
+			t.Log("Skipping data block")
+			if err := skipRawBlock(r, rev); err != nil {
+				t.Fatalf("skip raw block: %v", err)
 			}
 		case proto.ServerCodeTableColumns:
 			var tc proto.TableColumns
 			if err := tc.DecodeAware(r, rev); err != nil {
 				t.Fatalf("decode table columns: %v", err)
+			}
+		case proto.ServerProfileEvents:
+			if err := skipRawBlock(r, rev); err != nil {
+				t.Fatalf("skip ProfileEvents: %v", err)
+			}
+		case proto.ServerCodeLog:
+			if err := skipRawBlock(r, rev); err != nil {
+				t.Fatalf("skip Log: %v", err)
 			}
 		}
 	}

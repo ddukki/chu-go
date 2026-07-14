@@ -20,7 +20,7 @@ func roundTrip[T comparable](t *testing.T, col Of[T], vals []T) {
 	}
 
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
-	dst := NewBase[T]("test")
+	dst := NewBaseColumn[T]("test")
 	if err := dst.DecodeColumn(r, len(vals)); err != nil {
 		t.Fatal(err)
 	}
@@ -35,22 +35,24 @@ func roundTrip[T comparable](t *testing.T, col Of[T], vals []T) {
 }
 
 func TestBaseRoundTrip(t *testing.T) {
-	t.Run("uint8", func(t *testing.T) { roundTrip(t, NewBase[uint8]("v"), []uint8{1, 2, 255}) })
-	t.Run("uint16", func(t *testing.T) { roundTrip(t, NewBase[uint16]("v"), []uint16{1, 256, 65535}) })
-	t.Run("uint32", func(t *testing.T) { roundTrip(t, NewBase[uint32]("v"), []uint32{1, 70000, math.MaxUint32}) })
-	t.Run("uint64", func(t *testing.T) { roundTrip(t, NewBase[uint64]("v"), []uint64{1, math.MaxUint64}) })
-	t.Run("int8", func(t *testing.T) { roundTrip(t, NewBase[int8]("v"), []int8{-128, 0, 127}) })
-	t.Run("int16", func(t *testing.T) { roundTrip(t, NewBase[int16]("v"), []int16{-32768, 0, 32767}) })
-	t.Run("int32", func(t *testing.T) { roundTrip(t, NewBase[int32]("v"), []int32{math.MinInt32, 0, math.MaxInt32}) })
-	t.Run("int64", func(t *testing.T) { roundTrip(t, NewBase[int64]("v"), []int64{math.MinInt64, 0, math.MaxInt64}) })
-	t.Run("float32", func(t *testing.T) { roundTrip(t, NewBase[float32]("v"), []float32{0, 3.14, -2.5, math.MaxFloat32}) })
+	t.Run("uint8", func(t *testing.T) { roundTrip(t, NewBaseColumn[uint8]("v"), []uint8{1, 2, 255}) })
+	t.Run("uint16", func(t *testing.T) { roundTrip(t, NewBaseColumn[uint16]("v"), []uint16{1, 256, 65535}) })
+	t.Run("uint32", func(t *testing.T) { roundTrip(t, NewBaseColumn[uint32]("v"), []uint32{1, 70000, math.MaxUint32}) })
+	t.Run("uint64", func(t *testing.T) { roundTrip(t, NewBaseColumn[uint64]("v"), []uint64{1, math.MaxUint64}) })
+	t.Run("int8", func(t *testing.T) { roundTrip(t, NewBaseColumn[int8]("v"), []int8{-128, 0, 127}) })
+	t.Run("int16", func(t *testing.T) { roundTrip(t, NewBaseColumn[int16]("v"), []int16{-32768, 0, 32767}) })
+	t.Run("int32", func(t *testing.T) { roundTrip(t, NewBaseColumn[int32]("v"), []int32{math.MinInt32, 0, math.MaxInt32}) })
+	t.Run("int64", func(t *testing.T) { roundTrip(t, NewBaseColumn[int64]("v"), []int64{math.MinInt64, 0, math.MaxInt64}) })
+	t.Run("float32", func(t *testing.T) {
+		roundTrip(t, NewBaseColumn[float32]("v"), []float32{0, 3.14, -2.5, math.MaxFloat32})
+	})
 	t.Run("float64", func(t *testing.T) {
-		roundTrip(t, NewBase[float64]("v"), []float64{0, 3.14159265359, -2.5, math.MaxFloat64})
+		roundTrip(t, NewBaseColumn[float64]("v"), []float64{0, 3.14159265359, -2.5, math.MaxFloat64})
 	})
 }
 
 func TestBaseData(t *testing.T) {
-	col := NewBase[uint64]("id")
+	col := NewBaseColumn[uint64]("id")
 	col.Append(10)
 	col.Append(20)
 	col.Append(30)
@@ -61,7 +63,7 @@ func TestBaseData(t *testing.T) {
 	}
 
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
-	got := NewBase[uint64]("id")
+	got := NewBaseColumn[uint64]("id")
 	if err := got.DecodeColumn(r, 3); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +81,7 @@ func TestBaseData(t *testing.T) {
 }
 
 func TestStrRoundTrip(t *testing.T) {
-	col := NewStr("s")
+	col := NewStrColumn("s")
 	col.Append("hello")
 	col.Append("")
 	col.Append("world")
@@ -90,7 +92,7 @@ func TestStrRoundTrip(t *testing.T) {
 	}
 
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
-	got := NewStr("s")
+	got := NewStrColumn("s")
 	if err := got.DecodeColumn(r, 3); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +116,7 @@ func TestStrRoundTrip(t *testing.T) {
 }
 
 func TestNullableRoundTrip(t *testing.T) {
-	col := NewNullable(NewBase[uint64]("v"))
+	col := NewNullable(NewBaseColumn[uint64]("v"))
 	col.Append(1, false)
 	col.Append(0, true)
 	col.Append(3, false)
@@ -125,7 +127,7 @@ func TestNullableRoundTrip(t *testing.T) {
 	}
 
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
-	got := NewNullable(NewBase[uint64]("v"))
+	got := NewNullable(NewBaseColumn[uint64]("v"))
 	if err := got.DecodeColumn(r, 3); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +151,7 @@ func TestNullableRoundTrip(t *testing.T) {
 
 func TestLowCardinalityRoundTrip(t *testing.T) {
 	t.Run("uint8", func(t *testing.T) {
-		base := NewBase[uint8]("v")
+		base := NewBaseColumn[uint8]("v")
 		col := NewLowCardinality(base)
 		base.AppendArr([]uint8{1, 2, 3, 1, 2, 3})
 
@@ -159,7 +161,7 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 		}
 
 		r := proto.NewReader(bytes.NewReader(buf.Buf))
-		got := NewLowCardinality(NewBase[uint8]("v"))
+		got := NewLowCardinality(NewBaseColumn[uint8]("v"))
 		if err := got.DecodeColumn(r, 6); err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +176,7 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 	})
 
 	t.Run("string", func(t *testing.T) {
-		s := NewStr("v")
+		s := NewStrColumn("v")
 		col := NewLowCardinality(s)
 		s.AppendArr([]string{"a", "b", "a", "c"})
 
@@ -184,7 +186,7 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 		}
 
 		r := proto.NewReader(bytes.NewReader(buf.Buf))
-		got := NewLowCardinality(NewStr("v"))
+		got := NewLowCardinality(NewStrColumn("v"))
 		if err := got.DecodeColumn(r, 4); err != nil {
 			t.Fatal(err)
 		}
@@ -200,7 +202,7 @@ func TestLowCardinalityRoundTrip(t *testing.T) {
 }
 
 func TestTupleRoundTrip(t *testing.T) {
-	col := NewTuple2(NewBase[uint64]("a"), NewStr("b"))
+	col := NewTuple2(NewBaseColumn[uint64]("a"), NewStrColumn("b"))
 	col.Append(Tuple2Value[uint64, string]{1, "one"})
 	col.Append(Tuple2Value[uint64, string]{2, "two"})
 
@@ -209,7 +211,7 @@ func TestTupleRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := NewTuple2(NewBase[uint64]("a"), NewStr("b"))
+	got := NewTuple2(NewBaseColumn[uint64]("a"), NewStrColumn("b"))
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
 	if err := got.DecodeColumn(r, 2); err != nil {
 		t.Fatal(err)
@@ -230,13 +232,13 @@ func TestTupleRoundTrip(t *testing.T) {
 
 func TestEmptyColumn(t *testing.T) {
 	t.Run("Base[uint64]", func(t *testing.T) {
-		col := NewBase[uint64]("v")
+		col := NewBaseColumn[uint64]("v")
 		var buf proto.Buffer
 		if err := col.EncodeColumn(&buf); err != nil {
 			t.Fatal(err)
 		}
 		r := proto.NewReader(bytes.NewReader(buf.Buf))
-		got := NewBase[uint64]("v")
+		got := NewBaseColumn[uint64]("v")
 		if err := got.DecodeColumn(r, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -246,13 +248,13 @@ func TestEmptyColumn(t *testing.T) {
 	})
 
 	t.Run("Str", func(t *testing.T) {
-		col := NewStr("v")
+		col := NewStrColumn("v")
 		var buf proto.Buffer
 		if err := col.EncodeColumn(&buf); err != nil {
 			t.Fatal(err)
 		}
 		r := proto.NewReader(bytes.NewReader(buf.Buf))
-		got := NewStr("v")
+		got := NewStrColumn("v")
 		if err := got.DecodeColumn(r, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -262,13 +264,13 @@ func TestEmptyColumn(t *testing.T) {
 	})
 
 	t.Run("Nullable[uint64]", func(t *testing.T) {
-		col := NewNullable(NewBase[uint64]("v"))
+		col := NewNullable(NewBaseColumn[uint64]("v"))
 		var buf proto.Buffer
 		if err := col.EncodeColumn(&buf); err != nil {
 			t.Fatal(err)
 		}
 		r := proto.NewReader(bytes.NewReader(buf.Buf))
-		got := NewNullable(NewBase[uint64]("v"))
+		got := NewNullable(NewBaseColumn[uint64]("v"))
 		if err := got.DecodeColumn(r, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -283,17 +285,17 @@ func TestBaseType(t *testing.T) {
 		col  Column
 		want proto.ColumnType
 	}{
-		{NewBase[uint8]("v"), proto.ColumnTypeUInt8},
-		{NewBase[uint16]("v"), proto.ColumnTypeUInt16},
-		{NewBase[uint32]("v"), proto.ColumnTypeUInt32},
-		{NewBase[uint64]("v"), proto.ColumnTypeUInt64},
-		{NewBase[int8]("v"), proto.ColumnTypeInt8},
-		{NewBase[int16]("v"), proto.ColumnTypeInt16},
-		{NewBase[int32]("v"), proto.ColumnTypeInt32},
-		{NewBase[int64]("v"), proto.ColumnTypeInt64},
-		{NewBase[float32]("v"), proto.ColumnTypeFloat32},
-		{NewBase[float64]("v"), proto.ColumnTypeFloat64},
-		{NewBase[string]("v"), proto.ColumnType("")},
+		{NewBaseColumn[uint8]("v"), proto.ColumnTypeUInt8},
+		{NewBaseColumn[uint16]("v"), proto.ColumnTypeUInt16},
+		{NewBaseColumn[uint32]("v"), proto.ColumnTypeUInt32},
+		{NewBaseColumn[uint64]("v"), proto.ColumnTypeUInt64},
+		{NewBaseColumn[int8]("v"), proto.ColumnTypeInt8},
+		{NewBaseColumn[int16]("v"), proto.ColumnTypeInt16},
+		{NewBaseColumn[int32]("v"), proto.ColumnTypeInt32},
+		{NewBaseColumn[int64]("v"), proto.ColumnTypeInt64},
+		{NewBaseColumn[float32]("v"), proto.ColumnTypeFloat32},
+		{NewBaseColumn[float64]("v"), proto.ColumnTypeFloat64},
+		{NewBaseColumn[string]("v"), proto.ColumnType("")},
 	}
 	for _, tt := range tests {
 		if got := tt.col.Type(); got != tt.want {
@@ -303,33 +305,33 @@ func TestBaseType(t *testing.T) {
 }
 
 func TestBaseUnsupportedType(t *testing.T) {
-	col := NewBase[string]("v")
+	col := NewBaseColumn[string]("v")
 	if got := col.Type(); got != "" {
 		t.Fatalf("unexpected type for string: %q", got)
 	}
 }
 
 func TestName(t *testing.T) {
-	if got := NewBase[uint64]("id").Name(); got != "id" {
+	if got := NewBaseColumn[uint64]("id").Name(); got != "id" {
 		t.Fatalf("Name: got %q, want id", got)
 	}
-	if got := NewStr("s").Name(); got != "s" {
+	if got := NewStrColumn("s").Name(); got != "s" {
 		t.Fatalf("Name: got %q, want s", got)
 	}
-	if got := NewNullable(NewBase[uint64]("v")).Name(); got != "v" {
+	if got := NewNullable(NewBaseColumn[uint64]("v")).Name(); got != "v" {
 		t.Fatalf("Name: got %q, want v", got)
 	}
-	if got := NewLowCardinality(NewBase[uint64]("v")).Name(); got != "v" {
+	if got := NewLowCardinality(NewBaseColumn[uint64]("v")).Name(); got != "v" {
 		t.Fatalf("Name: got %q, want v", got)
 	}
-	tup := NewTuple2(NewBase[uint64]("a"), NewStr("b"))
+	tup := NewTuple2(NewBaseColumn[uint64]("a"), NewStrColumn("b"))
 	if got := tup.Name(); got != "" {
 		t.Fatalf("Tuple Name: got %q, want empty", got)
 	}
 }
 
 func TestAppendArr(t *testing.T) {
-	col := NewBase[uint64]("v")
+	col := NewBaseColumn[uint64]("v")
 	col.AppendArr([]uint64{1, 2, 3})
 	if col.Len() != 3 {
 		t.Fatalf("len: got %d, want 3", col.Len())
@@ -340,7 +342,7 @@ func TestAppendArr(t *testing.T) {
 }
 
 func TestSingleton(t *testing.T) {
-	col := NewBase[uint64]("v")
+	col := NewBaseColumn[uint64]("v")
 	col.Append(42)
 
 	var buf proto.Buffer
@@ -349,7 +351,7 @@ func TestSingleton(t *testing.T) {
 	}
 
 	r := proto.NewReader(bytes.NewReader(buf.Buf))
-	got := NewBase[uint64]("v")
+	got := NewBaseColumn[uint64]("v")
 	if err := got.DecodeColumn(r, 1); err != nil {
 		t.Fatal(err)
 	}

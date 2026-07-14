@@ -193,9 +193,8 @@ func (c *Conn) readColumnInfoBlock() error {
 		c.reader.EnableCompression()
 		defer c.reader.DisableCompression()
 	}
-	var bi proto.BlockInfo
 	if proto.FeatureBlockInfo.In(c.server.Revision) {
-		if err := bi.Decode(c.reader); err != nil {
+		if err := decodeBlockInfoSafe(c.reader); err != nil {
 			return &Error{Kind: KindProtocol, Message: "read column info block info", Err: err}
 		}
 	}
@@ -253,8 +252,13 @@ func (c *Conn) skipBlock(code proto.ServerCode) error {
 		c.skipResults = nil
 		c.skipResultsCode = code
 	}
+	if proto.FeatureBlockInfo.In(c.server.Revision) {
+		if err := decodeBlockInfoSafe(c.reader); err != nil {
+			return &Error{Kind: KindProtocol, Message: "skip block info", Err: err}
+		}
+	}
 	var block proto.Block
-	if err := block.DecodeBlock(c.reader, c.server.Revision, c.skipResults.Auto()); err != nil {
+	if err := block.DecodeRawBlock(c.reader, c.server.Revision, c.skipResults.Auto()); err != nil {
 		return &Error{Kind: KindProtocol, Message: "skip block", Err: err}
 	}
 	return nil

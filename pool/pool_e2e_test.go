@@ -165,11 +165,11 @@ func TestPoolSelectInsertE2E(t *testing.T) {
 		}
 	}()
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	idCol.Append(1)
 	idCol.Append(2)
 
-	nameCol := column.NewStr("name")
+	nameCol := column.NewStrColumn("name")
 	nameCol.Append("a")
 	nameCol.Append("b")
 
@@ -177,8 +177,8 @@ func TestPoolSelectInsertE2E(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outName := column.NewStr("name")
+	outID := column.NewBaseColumn[uint64]("id")
+	outName := column.NewStrColumn("name")
 
 	n, err := p.Select(ctx, "SELECT id, name FROM pool_test_select_insert ORDER BY id", outID, outName)
 	if err != nil {

@@ -108,8 +108,7 @@ func (c *Conn) handleDataBlock(cols []Column) (int, error) {
 	}
 
 	if proto.FeatureBlockInfo.In(c.server.Revision) {
-		var info proto.BlockInfo
-		if err := info.Decode(c.reader); err != nil {
+		if err := decodeBlockInfoSafe(c.reader); err != nil {
 			return 0, &Error{Kind: KindProtocol, Message: "decode block info", Err: err}
 		}
 	}

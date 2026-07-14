@@ -29,14 +29,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"uint8", "v UInt8",
 			func(n string) Column {
-				c := column.NewBase[uint8](n)
+				c := column.NewBaseColumn[uint8](n)
 				c.Append(0)
 				c.Append(1)
 				c.Append(255)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				v := col.(*column.Base[uint8])
+				v := col.(*column.BaseColumn[uint8])
 				if v.Row(0) != 0 || v.Row(1) != 1 || v.Row(2) != 255 {
 					t.Fatalf("uint8: got %v", v.Data)
 				}
@@ -45,14 +45,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"uint16", "v UInt16",
 			func(n string) Column {
-				c := column.NewBase[uint16](n)
+				c := column.NewBaseColumn[uint16](n)
 				c.Append(0)
 				c.Append(1)
 				c.Append(65535)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[uint16])
+				c := col.(*column.BaseColumn[uint16])
 				if c.Row(0) != 0 || c.Row(1) != 1 || c.Row(2) != 65535 {
 					t.Fatalf("uint16: got %v", c.Data)
 				}
@@ -61,14 +61,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"uint32", "v UInt32",
 			func(n string) Column {
-				c := column.NewBase[uint32](n)
+				c := column.NewBaseColumn[uint32](n)
 				c.Append(0)
 				c.Append(1)
 				c.Append(4294967295)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[uint32])
+				c := col.(*column.BaseColumn[uint32])
 				if c.Row(0) != 0 || c.Row(1) != 1 || c.Row(2) != 4294967295 {
 					t.Fatalf("uint32: got %v", c.Data)
 				}
@@ -77,14 +77,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"uint64", "v UInt64",
 			func(n string) Column {
-				c := column.NewBase[uint64](n)
+				c := column.NewBaseColumn[uint64](n)
 				c.Append(0)
 				c.Append(1)
 				c.Append(18446744073709551615)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[uint64])
+				c := col.(*column.BaseColumn[uint64])
 				if c.Row(0) != 0 || c.Row(1) != 1 || c.Row(2) != 18446744073709551615 {
 					t.Fatalf("uint64: got %v", c.Data)
 				}
@@ -93,14 +93,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"int8", "v Int8",
 			func(n string) Column {
-				c := column.NewBase[int8](n)
+				c := column.NewBaseColumn[int8](n)
 				c.Append(-128)
 				c.Append(0)
 				c.Append(127)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[int8])
+				c := col.(*column.BaseColumn[int8])
 				if c.Row(0) != -128 || c.Row(1) != 0 || c.Row(2) != 127 {
 					t.Fatalf("int8: got %v", c.Data)
 				}
@@ -109,14 +109,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"int16", "v Int16",
 			func(n string) Column {
-				c := column.NewBase[int16](n)
+				c := column.NewBaseColumn[int16](n)
 				c.Append(-32768)
 				c.Append(0)
 				c.Append(32767)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[int16])
+				c := col.(*column.BaseColumn[int16])
 				if c.Row(0) != -32768 || c.Row(1) != 0 || c.Row(2) != 32767 {
 					t.Fatalf("int16: got %v", c.Data)
 				}
@@ -125,14 +125,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"int32", "v Int32",
 			func(n string) Column {
-				c := column.NewBase[int32](n)
+				c := column.NewBaseColumn[int32](n)
 				c.Append(-2147483648)
 				c.Append(0)
 				c.Append(2147483647)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[int32])
+				c := col.(*column.BaseColumn[int32])
 				if c.Row(0) != -2147483648 || c.Row(1) != 0 || c.Row(2) != 2147483647 {
 					t.Fatalf("int32: got %v", c.Data)
 				}
@@ -141,14 +141,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"int64", "v Int64",
 			func(n string) Column {
-				c := column.NewBase[int64](n)
+				c := column.NewBaseColumn[int64](n)
 				c.Append(-9223372036854775808)
 				c.Append(0)
 				c.Append(9223372036854775807)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[int64])
+				c := col.(*column.BaseColumn[int64])
 				if c.Row(0) != -9223372036854775808 || c.Row(1) != 0 || c.Row(2) != 9223372036854775807 {
 					t.Fatalf("int64: got %v", c.Data)
 				}
@@ -157,14 +157,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"float32", "v Float32",
 			func(n string) Column {
-				c := column.NewBase[float32](n)
+				c := column.NewBaseColumn[float32](n)
 				c.Append(-3.4028235e38)
 				c.Append(0)
 				c.Append(3.4028235e38)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[float32])
+				c := col.(*column.BaseColumn[float32])
 				if c.Row(0) != -3.4028235e38 || c.Row(1) != 0 || c.Row(2) != 3.4028235e38 {
 					t.Fatalf("float32: got %v", c.Data)
 				}
@@ -173,14 +173,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"float64", "v Float64",
 			func(n string) Column {
-				c := column.NewBase[float64](n)
+				c := column.NewBaseColumn[float64](n)
 				c.Append(-1.7976931348623157e308)
 				c.Append(0)
 				c.Append(1.7976931348623157e308)
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Base[float64])
+				c := col.(*column.BaseColumn[float64])
 				if c.Row(0) != -1.7976931348623157e308 || c.Row(1) != 0 || c.Row(2) != 1.7976931348623157e308 {
 					t.Fatalf("float64: got %v", c.Data)
 				}
@@ -189,14 +189,14 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"string", "v String",
 			func(n string) Column {
-				c := column.NewStr(n)
+				c := column.NewStrColumn(n)
 				c.Append("hello")
 				c.Append("")
 				c.Append("world")
 				return c
 			},
 			func(t *testing.T, col Column) {
-				c := col.(*column.Str)
+				c := col.(*column.StrColumn)
 				// ORDER BY sorts: '' < 'hello' < 'world'
 				if c.Row(0) != "" || c.Row(1) != "hello" || c.Row(2) != "world" {
 					t.Fatalf("string: got %v", c.Data)
@@ -206,7 +206,7 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"nullable", "v Nullable(UInt64)",
 			func(n string) Column {
-				c := column.NewNullable(column.NewBase[uint64](n))
+				c := column.NewNullable(column.NewBaseColumn[uint64](n))
 				c.Append(1, false)
 				c.Append(0, true)
 				c.Append(3, false)
@@ -229,7 +229,7 @@ func TestFuzzRoundtripE2E(t *testing.T) {
 		{
 			"nullable_str", "v Nullable(String)",
 			func(n string) Column {
-				c := column.NewNullable(column.NewStr(n))
+				c := column.NewNullable(column.NewStrColumn(n))
 				c.Append("a", false)
 				c.Append("", true)
 				c.Append("c", false)
@@ -291,7 +291,7 @@ func TestFuzzColumnCountMismatchE2E(t *testing.T) {
 	defer cancel()
 
 	// 1 column query but pass 2 output columns
-	_, err := c.Select(ctx, "SELECT 1 AS a", column.NewBase[uint64]("a"), column.NewBase[uint64]("b"))
+	_, err := c.Select(ctx, "SELECT 1 AS a", column.NewBaseColumn[uint64]("a"), column.NewBaseColumn[uint64]("b"))
 	if err == nil {
 		t.Fatal("expected error for column count mismatch")
 	}
@@ -319,8 +319,8 @@ func TestFuzzEmptyResultSetE2E(t *testing.T) {
 		t.Fatalf("CREATE: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outName := column.NewStr("name")
+	outID := column.NewBaseColumn[uint64]("id")
+	outName := column.NewStrColumn("name")
 	n, err := c.Select(ctx, "SELECT id, name FROM fuzz_empty ORDER BY id", outID, outName)
 	if err != nil {
 		t.Fatalf("Select: %v", err)
@@ -349,7 +349,7 @@ func TestFuzzManyRowsE2E(t *testing.T) {
 	}
 
 	// Insert 500 rows via native encoder
-	col := column.NewBase[uint64]("id")
+	col := column.NewBaseColumn[uint64]("id")
 	for i := uint64(0); i < 500; i++ {
 		col.Append(i)
 	}
@@ -357,7 +357,7 @@ func TestFuzzManyRowsE2E(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	out := column.NewBase[uint64]("id")
+	out := column.NewBaseColumn[uint64]("id")
 	n, err := c.Select(ctx, "SELECT id FROM fuzz_many ORDER BY id", out)
 	if err != nil {
 		t.Fatalf("Select: %v", err)
@@ -387,7 +387,7 @@ func TestFuzzCallbackCrashE2E(t *testing.T) {
 	if err := c.Exec(ctx, "CREATE TABLE fuzz_cb (x UInt64) ENGINE = Memory"); err != nil {
 		t.Fatalf("CREATE: %v", err)
 	}
-	out := column.NewBase[uint64]("x")
+	out := column.NewBaseColumn[uint64]("x")
 	// Leave OnProgress/OnProfile nil — should not panic
 	_, err := c.Select(ctx, "SELECT x FROM fuzz_cb ORDER BY x", out)
 	if err != nil {
@@ -397,7 +397,7 @@ func TestFuzzCallbackCrashE2E(t *testing.T) {
 	// Set OnProgress, verify it fires at least once
 	gotProgress := false
 	c.OnProgress = func(p proto.Progress) { gotProgress = true }
-	out2 := column.NewBase[uint64]("x")
+	out2 := column.NewBaseColumn[uint64]("x")
 	_, err = c.Select(ctx, "SELECT x FROM fuzz_cb ORDER BY x", out2)
 	if err != nil {
 		t.Fatalf("Select with OnProgress: %v", err)
@@ -427,11 +427,11 @@ func TestFuzzSelectAllTypesE2E(t *testing.T) {
 		t.Fatalf("INSERT: %v", err)
 	}
 
-	a := column.NewBase[uint64]("a")
-	b := column.NewBase[int32]("b")
-	cStr := column.NewStr("c")
-	d := column.NewBase[float64]("d")
-	e := column.NewBase[uint8]("e")
+	a := column.NewBaseColumn[uint64]("a")
+	b := column.NewBaseColumn[int32]("b")
+	cStr := column.NewStrColumn("c")
+	d := column.NewBaseColumn[float64]("d")
+	e := column.NewBaseColumn[uint8]("e")
 
 	n, err := c.Select(ctx, "SELECT a,b,c,d,e FROM fuzz_alltypes ORDER BY a", a, b, cStr, d, e)
 	if err != nil {

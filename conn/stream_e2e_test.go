@@ -24,16 +24,16 @@ func TestSelectStreamSingleBlockE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	idCol.AppendArr([]uint64{1, 2, 3})
-	nameCol := column.NewStr("name")
+	nameCol := column.NewStrColumn("name")
 	nameCol.AppendArr([]string{"a", "b", "c"})
 	if err := c.Insert(ctx, "INSERT INTO test_stream_select (id, name) VALUES", idCol, nameCol); err != nil {
 		t.Fatal(err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outName := column.NewStr("name")
+	outID := column.NewBaseColumn[uint64]("id")
+	outName := column.NewStrColumn("name")
 
 	s, err := c.SelectStream(ctx, "SELECT id, name FROM test_stream_select ORDER BY id")
 	if err != nil {
@@ -102,7 +102,7 @@ func TestSelectStreamCancelMidStreamE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	col := column.NewBase[uint64]("id")
+	col := column.NewBaseColumn[uint64]("id")
 	for i := uint64(0); i < 500; i++ {
 		col.Append(i)
 	}
@@ -110,7 +110,7 @@ func TestSelectStreamCancelMidStreamE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out := column.NewBase[uint64]("id")
+	out := column.NewBaseColumn[uint64]("id")
 	s, err := c.SelectStream(ctx, "SELECT id FROM test_stream_cancel ORDER BY id")
 	if err != nil {
 		t.Fatalf("SelectStream: %v", err)
@@ -184,13 +184,13 @@ func TestSelectStreamCallbacksE2E(t *testing.T) {
 	if err := c.Exec(ctx, "CREATE TABLE test_stream_cb (id UInt64) ENGINE = Memory"); err != nil {
 		t.Fatal(err)
 	}
-	col := column.NewBase[uint64]("id")
+	col := column.NewBaseColumn[uint64]("id")
 	col.AppendArr([]uint64{1, 2, 3})
 	if err := c.Insert(ctx, "INSERT INTO test_stream_cb (id) VALUES", col); err != nil {
 		t.Fatal(err)
 	}
 
-	out := column.NewBase[uint64]("id")
+	out := column.NewBaseColumn[uint64]("id")
 	s, err := c.SelectStream(ctx, "SELECT id FROM test_stream_cb")
 	if err != nil {
 		t.Fatalf("SelectStream: %v", err)
@@ -225,8 +225,8 @@ func TestInsertStreamMultiBlockE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	idCol := column.NewBase[uint64]("id")
-	nameCol := column.NewStr("name")
+	idCol := column.NewBaseColumn[uint64]("id")
+	nameCol := column.NewStrColumn("name")
 
 	s, err := c.InsertStream(ctx, "INSERT INTO test_insert_stream (id, name) VALUES")
 	if err != nil {
@@ -253,8 +253,8 @@ func TestInsertStreamMultiBlockE2E(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outName := column.NewStr("name")
+	outID := column.NewBaseColumn[uint64]("id")
+	outName := column.NewStrColumn("name")
 	n, err := c.Select(ctx, "SELECT id, name FROM test_insert_stream ORDER BY id", outID, outName)
 	if err != nil {
 		t.Fatalf("Select: %v", err)
@@ -298,7 +298,7 @@ func TestInsertStreamNoDataE2E(t *testing.T) {
 	}
 	defer func() { require.NoError(t, s.Close()) }()
 
-	s.Bind(column.NewBase[uint64]("id"))
+	s.Bind(column.NewBaseColumn[uint64]("id"))
 	if err := s.Append(); err == nil {
 		t.Fatal("expected error with empty data")
 	}

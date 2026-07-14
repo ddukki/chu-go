@@ -225,7 +225,7 @@ func TestSelectOnlyE2E(t *testing.T) {
 	defer cancel()
 
 	// SELECT 1 — simplest query, one UInt8 column
-	one := column.NewBase[uint8]("1")
+	one := column.NewBaseColumn[uint8]("1")
 	n, err := c.Select(ctx, "SELECT 1 AS `1`", one)
 	if err != nil {
 		t.Fatalf("Select: %v", err)
@@ -313,12 +313,12 @@ func TestSelectInsertE2E(t *testing.T) {
 	}
 	defer func() { _ = c.Exec(ctx, "DROP TABLE IF EXISTS test_select_insert_e2e") }()
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	idCol.Append(1)
 	idCol.Append(2)
 	idCol.Append(3)
 
-	nameCol := column.NewStr("name")
+	nameCol := column.NewStrColumn("name")
 	nameCol.Append("foo")
 	nameCol.Append("bar")
 	nameCol.Append("baz")
@@ -327,8 +327,8 @@ func TestSelectInsertE2E(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outName := column.NewStr("name")
+	outID := column.NewBaseColumn[uint64]("id")
+	outName := column.NewStrColumn("name")
 
 	n, err := c.Select(ctx, "SELECT id, name FROM test_select_insert_e2e ORDER BY id", outID, outName)
 	if err != nil {
@@ -359,7 +359,7 @@ func TestSelectColumnMismatchE2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := c.Select(ctx, "SELECT 1 AS a, 2 AS b", column.NewBase[uint64]("a"))
+	_, err := c.Select(ctx, "SELECT 1 AS a, 2 AS b", column.NewBaseColumn[uint64]("a"))
 	if err == nil {
 		t.Fatal("expected column count mismatch error")
 	}
@@ -383,7 +383,7 @@ func TestInsertZeroRowsE2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	err := c.Insert(ctx, "INSERT INTO test (id) VALUES", idCol)
 	if err == nil {
 		t.Fatal("expected error on zero-row insert")
@@ -416,12 +416,12 @@ func TestSelectInsertLowCardinalityE2E(t *testing.T) {
 	}
 	defer func() { _ = c.Exec(ctx, "DROP TABLE IF EXISTS test_lc_e2e") }()
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	idCol.Append(10)
 	idCol.Append(20)
 	idCol.Append(30)
 
-	cityCol := column.NewLowCardinality(column.NewStr("city"))
+	cityCol := column.NewLowCardinality(column.NewStrColumn("city"))
 	cityCol.Values.Append("NYC")
 	cityCol.Values.Append("LA")
 	cityCol.Values.Append("NYC")
@@ -430,8 +430,8 @@ func TestSelectInsertLowCardinalityE2E(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
-	outCity := column.NewLowCardinality(column.NewStr("city"))
+	outID := column.NewBaseColumn[uint64]("id")
+	outCity := column.NewLowCardinality(column.NewStrColumn("city"))
 
 	n, err := c.Select(ctx, "SELECT id, city FROM test_lc_e2e ORDER BY id", outID, outCity)
 	if err != nil {
@@ -472,7 +472,7 @@ func TestSelectCallbackE2E(t *testing.T) {
 	}
 	defer func() { _ = c.Exec(ctx, "DROP TABLE IF EXISTS test_cb_e2e") }()
 
-	idCol := column.NewBase[uint64]("id")
+	idCol := column.NewBaseColumn[uint64]("id")
 	for i := uint64(0); i < 1000; i++ {
 		idCol.Append(i)
 	}
@@ -480,7 +480,7 @@ func TestSelectCallbackE2E(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	outID := column.NewBase[uint64]("id")
+	outID := column.NewBaseColumn[uint64]("id")
 	n, err := c.Select(ctx, "SELECT id FROM test_cb_e2e ORDER BY id", outID)
 	if err != nil {
 		t.Fatalf("Select: %v", err)

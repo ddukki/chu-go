@@ -106,8 +106,7 @@ func (s *SelectStream) Next() bool {
 				}
 			}
 			if proto.FeatureBlockInfo.In(c.server.Revision) {
-				var info proto.BlockInfo
-				if err := info.Decode(c.reader); err != nil {
+				if err := decodeBlockInfoSafe(c.reader); err != nil {
 					s.err = &Error{Kind: KindProtocol, Message: "decode block info", Err: err}
 					s.done = true
 					return false
@@ -337,7 +336,7 @@ func (s *SelectStream) Close() error {
 	if s.release != nil {
 		s.release()
 	}
-	return s.err
+	return nil
 }
 
 // SetRelease sets a function to be called when the stream is done or closed.

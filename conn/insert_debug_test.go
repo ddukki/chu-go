@@ -139,8 +139,7 @@ func TestInsertChGoStyleE2E(t *testing.T) {
 				var p proto.Progress
 				_ = p.DecodeAware(r, sh.Revision)
 			case proto.ServerCodeData:
-				var bi proto.BlockInfo
-				_ = bi.Decode(r)
+				_ = decodeBlockInfoSafe(r)
 				cols, _ := r.Int()
 				_, _ = r.Int()
 				for i := 0; i < cols; i++ {
@@ -150,6 +149,10 @@ func TestInsertChGoStyleE2E(t *testing.T) {
 						_, _ = r.Bool()
 					}
 				}
+			case proto.ServerProfileEvents:
+				_ = skipRawBlock(r, sh.Revision)
+			case proto.ServerCodeLog:
+				_ = skipRawBlock(r, sh.Revision)
 			default:
 				t.Logf("DDL: server code %d", c)
 			}
@@ -197,8 +200,7 @@ readColInfo:
 			if proto.FeatureTempTables.In(sh.Revision) {
 				_, _ = r.Str()
 			}
-			var bi proto.BlockInfo
-			_ = bi.Decode(r)
+			_ = decodeBlockInfoSafe(r)
 			cols, _ := r.Int()
 			rows, _ := r.Int()
 			t.Logf("Column info: cols=%d rows=%d", cols, rows)
@@ -225,6 +227,10 @@ readColInfo:
 		case proto.ServerCodeTableColumns:
 			var tc proto.TableColumns
 			_ = tc.DecodeAware(r, sh.Revision)
+		case proto.ServerProfileEvents:
+			_ = skipRawBlock(r, sh.Revision)
+		case proto.ServerCodeLog:
+			_ = skipRawBlock(r, sh.Revision)
 		default:
 			t.Logf("Server code: %d", c)
 		}
@@ -298,20 +304,23 @@ readColInfo:
 					return
 				}
 			case proto.ServerCodeData:
-				t.Log("Got unexpected Data")
-				if proto.FeatureTempTables.In(sh.Revision) {
-					_, _ = r.Str()
+				t.Log("Skipping unexpected Data block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip data block: %w", err)
+					return
 				}
-				if proto.FeatureBlockInfo.In(sh.Revision) {
-					var bi proto.BlockInfo
-					if err := bi.Decode(r); err != nil {
-						done <- fmt.Errorf("decode block info: %w", err)
-						return
-					}
+			case proto.ServerProfileEvents:
+				t.Log("Skipping ProfileEvents block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip ProfileEvents: %w", err)
+					return
 				}
-				cols, _ := r.Int()
-				rows, _ := r.Int()
-				t.Logf("Data: cols=%d rows=%d", cols, rows)
+			case proto.ServerCodeLog:
+				t.Log("Skipping Log block")
+				if err := skipRawBlock(r, sh.Revision); err != nil {
+					done <- fmt.Errorf("skip Log: %w", err)
+					return
+				}
 			default:
 				t.Logf("Unexpected code: %d", c)
 			}

@@ -38,37 +38,37 @@ type Of[T any] interface {
 	Reset()
 }
 
-// Base is a generic fixed-width column (UInt64, Float64, etc.).
-type Base[T any] struct {
+// BaseColumn is a generic fixed-width column (UInt64, Float64, etc.).
+type BaseColumn[T any] struct {
 	name string
 	Data []T
 }
 
-// NewBase creates a Base column with the given column name.
-func NewBase[T any](name string) *Base[T] {
-	return &Base[T]{name: name}
+// NewBaseColumn creates a BaseColumn with the given column name.
+func NewBaseColumn[T any](name string) *BaseColumn[T] {
+	return &BaseColumn[T]{name: name}
 }
 
 // Name returns the column name.
-func (c *Base[T]) Name() string { return c.name }
+func (c *BaseColumn[T]) Name() string { return c.name }
 
 // Len returns the number of elements in the column.
-func (c *Base[T]) Len() int { return len(c.Data) }
+func (c *BaseColumn[T]) Len() int { return len(c.Data) }
 
 // Append adds a single value to the column.
-func (c *Base[T]) Append(v T) { c.Data = append(c.Data, v) }
+func (c *BaseColumn[T]) Append(v T) { c.Data = append(c.Data, v) }
 
 // AppendArr adds multiple values to the column.
-func (c *Base[T]) AppendArr(v []T) { c.Data = append(c.Data, v...) }
+func (c *BaseColumn[T]) AppendArr(v []T) { c.Data = append(c.Data, v...) }
 
 // Row returns the value at index i.
-func (c *Base[T]) Row(i int) T { return c.Data[i] }
+func (c *BaseColumn[T]) Row(i int) T { return c.Data[i] }
 
 // Reset clears the column data without releasing the backing array.
-func (c *Base[T]) Reset() { c.Data = c.Data[:0] }
+func (c *BaseColumn[T]) Reset() { c.Data = c.Data[:0] }
 
 // Type returns the column's ClickHouse wire type.
-func (c *Base[T]) Type() proto.ColumnType {
+func (c *BaseColumn[T]) Type() proto.ColumnType {
 	var zero T
 	switch any(zero).(type) {
 	case uint8:
@@ -97,7 +97,7 @@ func (c *Base[T]) Type() proto.ColumnType {
 }
 
 // DecodeColumn decodes rows from the wire protocol into the backing array.
-func (c *Base[T]) DecodeColumn(r *proto.Reader, rows int) error {
+func (c *BaseColumn[T]) DecodeColumn(r *proto.Reader, rows int) error {
 	if rows == 0 {
 		c.Data = c.Data[:0]
 		return nil
@@ -126,7 +126,7 @@ func (c *Base[T]) DecodeColumn(r *proto.Reader, rows int) error {
 }
 
 // EncodeColumn encodes the column data to the wire buffer.
-func (c *Base[T]) EncodeColumn(b *proto.Buffer) error {
+func (c *BaseColumn[T]) EncodeColumn(b *proto.Buffer) error {
 	if len(c.Data) == 0 {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (c *Base[T]) EncodeColumn(b *proto.Buffer) error {
 }
 
 // WriteColumn writes the column data to the wire writer.
-func (c *Base[T]) WriteColumn(w *proto.Writer) {
+func (c *BaseColumn[T]) WriteColumn(w *proto.Writer) {
 	if len(c.Data) == 0 {
 		return
 	}
